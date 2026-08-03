@@ -1,0 +1,23 @@
+# transient Vitis/Vivado build tree (generated per-graph kernels + P&R products)
+build/
+_x/
+.Xil/
+*.log
+*.jou
+*.str
+*.wcfg
+*.wdb
+.autopilot/
+vitis_hls.log
+
+# host build output
+build/host_graph
+
+# NOTE: prebuilt/ is intentionally tracked -- it holds the deliverable
+# per-graph artifacts (baked kernel, U280 csynth report, packaged IP, golden
+# expected.txt). The large .xclbin is NOT committed; build it on the target
+# machine (see LOAD_AND_TEST.md).
+
+# python bytecode
+__pycache__/
+*.pyc

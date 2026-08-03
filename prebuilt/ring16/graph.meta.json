@@ -1,0 +1,21 @@
+{
+  "name": "ring16",
+  "input": "/home/coder/fpga-routing-graph/examples/ring16.edges",
+  "n": 16,
+  "edges": 16,
+  "directed": false,
+  "mode": "latch",
+  "latch": true,
+  "seed": [
+    0
+  ],
+  "baked_steps": 9,
+  "eccentricity_from_seed": 8,
+  "reachable_after_steps": 16,
+  "min_indeg": 2,
+  "max_indeg": 2,
+  "avg_indeg": 2.0,
+  "total_terms": 32,
+  "words": 1,
+  "generator": "gen_hls.py"
+}

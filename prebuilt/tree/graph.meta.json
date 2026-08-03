@@ -1,0 +1,21 @@
+{
+  "name": "tree",
+  "input": "/home/coder/fpga-routing-graph/examples/tree.edges",
+  "n": 11,
+  "edges": 10,
+  "directed": true,
+  "mode": "latch",
+  "latch": true,
+  "seed": [
+    0
+  ],
+  "baked_steps": 4,
+  "eccentricity_from_seed": 3,
+  "reachable_after_steps": 11,
+  "min_indeg": 0,
+  "max_indeg": 1,
+  "avg_indeg": 0.909,
+  "total_terms": 10,
+  "words": 1,
+  "generator": "gen_hls.py"
+}
