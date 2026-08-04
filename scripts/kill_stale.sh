@@ -4,6 +4,8 @@
 cd ~/fpga-routing-graph || exit 1
 # 1. stop orchestrators/watchers
 pkill -f build_xclbin_u280.sh 2>/dev/null
+pkill -f build_all_seq.sh    2>/dev/null
+pkill -f build_graph.sh      2>/dev/null
 pkill -f resume_ring16.sh    2>/dev/null
 pkill -f run_after_builds.sh 2>/dev/null
 sleep 1
