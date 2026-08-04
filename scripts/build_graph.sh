@@ -5,8 +5,10 @@ G="${1:?usage: build_graph.sh <graph>}"
 cd ~/fpga-routing-graph || exit 1
 # Vivado 2023.2 vs Ubuntu 24.04 glibc 2.39: glibc's malloc aborts on Vivado's
 # heap ops (realloc: invalid pointer). Preload tcmalloc to replace the allocator
-# and bypass the abort. This is the working fix for the IPCACHE threadPool crash.
-export LD_PRELOAD=/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4
+# and bypass the abort. Only needed on unsupported-glibc hosts; a no-op (skipped)
+# on a supported OS where the lib isn't present at this path.
+TCMALLOC=/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4
+[ -f "$TCMALLOC" ] && export LD_PRELOAD="$TCMALLOC"
 XPFM=~/u280dev/opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm
 L="$PWD/build/$G"
 rm -rf "$L/_x" "$L/_xl" "$L/graph_engine.xclbin"
