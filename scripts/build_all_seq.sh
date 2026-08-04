@@ -4,6 +4,10 @@
 # IP-cache collision that heap-corrupted both runs on the first attempt.
 cd ~/fpga-routing-graph || exit 1
 XPFM=~/u280dev/opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm
+# Fix for Vivado "realloc(): invalid pointer" on newer OS: preload system
+# libudev (Vivado's bundled libudev is too old). Xilinx AR 000034450.
+LIBUDEV=/usr/lib/x86_64-linux-gnu/libudev.so.1
+[ -f "$LIBUDEV" ] && export LD_PRELOAD="$LIBUDEV"
 rm -f BUILD_DONE SWEEP_DONE BUILD_STATUS
 
 build_one() {
