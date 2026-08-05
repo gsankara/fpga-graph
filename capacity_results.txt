@@ -1,0 +1,6 @@
+# capacity sweep on xcu280-fsvh2892-2L-e  Wed Aug  5 05:49:04 PM UTC 2026
+# device: LUT 1,303,680  FF 2,607,360
+# N        degree terms      LUT       FF        Fmax(MHz) status             seconds
+500        20     10000      32649     7452      411.37    OK                 521s
+1000       20     20000      73872     14400     355.62    OK                 5156s
+2000       20     40000      -         -         -         FAIL_rc124         5401s

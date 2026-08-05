@@ -69,8 +69,25 @@ resources; the open question it answers empirically is HLS/routing/timing.
 > `--steps` only sets the testbench/self-check depth; the hardware `num_steps`
 > is a runtime argument, so a baked graph runs any number of hops on the card.
 
-## Empirical sweep
+## Empirical sweep (measured on xcu280)
 
-`scripts/capacity_sweep.sh` runs csynth for a ladder of sizes on `xcu280`,
-recording LUT/FF and estimated Fmax, to pin the practical ceiling. Results are
-appended to `capacity_results.txt` (committed once the run completes).
+`scripts/capacity_sweep.sh` runs csynth for a ladder of sizes and records
+LUT/FF/Fmax to `capacity_results.txt`. Measured results (degree 20):
+
+| N (nodes) | OR terms | LUT | FF | Fmax | csynth time | status |
+|-----------|----------|-----|-----|------|-------------|--------|
+| 500  | 10,000 | 32,649 | 7,452  | 411 MHz | ~9 min  | OK |
+| 1000 | 20,000 | 73,872 | 14,400 | 356 MHz | ~86 min | OK |
+| 2000 | 40,000 | —      | —      | —       | >90 min | **timeout** |
+
+**The binding limit is HLS synthesis TIME, not device resources.** csynth cost
+grows superlinearly with the single unrolled basic block (9 min -> 86 min ->
+timeout across a 2x, 2x size step). At N=1000 the design uses only ~74k LUT
+(~6%) and ~14k FF (<1%) of the U280 -- resources are nowhere near full, but the
+HLS front end can't schedule a bigger flat kernel in reasonable time.
+
+**Practical ceiling for a single flat-baked kernel: ~1000 nodes / ~20k OR
+terms.** This is ~1000x below the resource-based estimate above, and the real
+reason large graphs must be **partitioned into ~1000-node tiles** (or use a
+soft CSR engine) rather than baked whole. LUT scales ~74xN, so even by resources
+one device tops out near ~13k nodes -- but HLS time caps it far lower.

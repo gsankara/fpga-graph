@@ -11,7 +11,7 @@ mkdir -p examples/cap
   echo "# capacity sweep on $PART  $(date)"
   echo "# device: LUT 1,303,680  FF 2,607,360"
   printf "# %-8s %-6s %-10s %-9s %-9s %-9s %-18s %s\n" \
-         N degree terms LUT FF Fmax(MHz) status seconds
+         N degree terms LUT FF "Fmax(MHz)" status seconds
 } > "$OUT"
 
 run() {
@@ -40,11 +40,17 @@ run() {
   echo "[sweep] N=$N D=$D terms=$terms -> LUT=${lut:--} FF=${ff:--} Fmax=${fmax:--} $status $((t1-t0))s"
 }
 
-# ladder: fixed degree 20, growing N (100k .. 2M terms); plus high-degree points
-run 20000  20      # 400k terms
-run 50000  20      # 1.0M terms
-run 100000 20      # 2.0M terms  <- the largest sample
-run 10000  200     # 2.0M terms, degree 200 (deeper OR trees)
-run 2000   1000    # 2.0M terms, degree 1000 (design avg degree)
+# Ladder as space-separated "N:degree" pairs; override with the LADDER env var.
+# Default descends in size to find the practical csynth ceiling: 20000 nodes
+# (400k OR terms) exceeds Vitis HLS's single-basic-block instruction limit and
+# fails, so we probe smaller graphs to locate where synthesis passes.
+# Empirically, csynth time blows up superlinearly: N=500 ~9min, N=1000 ~86min,
+# N=2000 times out (>90min). So the flat-baked single-kernel ceiling is ~1000
+# nodes / ~20k OR terms -- far below the device's resource capacity. Default
+# ladder stops at 2000 (the timeout point); override with the LADDER env var.
+LADDER="${LADDER:-500:20 1000:20 2000:20}"
+for pair in $LADDER; do
+  run "${pair%%:*}" "${pair##*:}"
+done
 echo "DONE" >> "$OUT"
 echo "[sweep] complete -> $OUT"
