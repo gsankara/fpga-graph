@@ -15,8 +15,10 @@ build/host_graph
 
 # NOTE: prebuilt/ is intentionally tracked -- it holds the deliverable
 # per-graph artifacts (baked kernel, U280 csynth report, packaged IP, golden
-# expected.txt). The large .xclbin is NOT committed; build it on the target
-# machine (see LOAD_AND_TEST.md).
+# expected.txt) AND the built .xclbin for each design, ~47 MiB apiece. They are
+# committed deliberately so a run needs no Vitis install; see each directory's
+# BUILD.md for sha256, platform VBNV and routed timing. Rebuild instructions
+# are in LOAD_AND_TEST.md.
 
 # python bytecode
 __pycache__/
