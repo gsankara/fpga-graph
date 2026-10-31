@@ -1,0 +1,110 @@
+##### hostname: coder-sankarang-csg-2fpga   (NRP Coder workspace "csg-2fpga")
+##### NOTE ON PROVENANCE
+# This file is ASSEMBLED FROM SESSION CAPTURES taken 2026-10-31 between
+# 04:10 and 04:40 UTC, not from a single live capture run. Three attempts at a
+# consolidated capture at 05:58, 06:00 and 06:03 UTC all failed with
+# "The workspace agent lost connection" -- a Coder agent problem, not the box.
+# Every value below was read off this machine during the measurement session;
+# fields that were never probed are marked "not probed" rather than guessed.
+
+### OS / kernel
+Ubuntu 24.04.5 LTS
+kernel: not probed
+glibc: not probed
+
+### CPU
+nproc: 4
+model: not probed
+
+### memory
+total: 187 GB
+
+### chassis / board
+BIOS Vendor  : American Megatrends Inc.
+BIOS Version : V1.01
+(system-manufacturer / product-name: not probed)
+
+### Xilinx PCI devices
+# SIX U55C cards are on the bus (12 functions). 505c = mgmt, 505d = user.
+1a:00.0 1200: 10ee:505c        1a:00.1 1200: 10ee:505d
+1b:00.0 1200: 10ee:505c        1b:00.1 1200: 10ee:505d
+60:00.0 1200: 10ee:505c        60:00.1 1200: 10ee:505d
+61:00.0 1200: 10ee:505c        61:00.1 1200: 10ee:505d
+b1:00.0 1200: 10ee:505c        b1:00.1 1200: 10ee:505d
+b2:00.0 1200: 10ee:505c        b2:00.1 1200: 10ee:505d
+cards (distinct PCI bus): 6
+
+### driver bind state (all 12 functions bound)
+0000:1a:00.0 device=0x505c driver=xclmgmt     0000:1a:00.1 device=0x505d driver=xocl
+0000:1b:00.0 device=0x505c driver=xclmgmt     0000:1b:00.1 device=0x505d driver=xocl
+0000:60:00.0 device=0x505c driver=xclmgmt     0000:60:00.1 device=0x505d driver=xocl
+0000:61:00.0 device=0x505c driver=xclmgmt     0000:61:00.1 device=0x505d driver=xocl
+0000:b1:00.0 device=0x505c driver=xclmgmt     0000:b1:00.1 device=0x505d driver=xocl
+0000:b2:00.0 device=0x505c driver=xclmgmt     0000:b2:00.1 device=0x505d driver=xocl
+
+### device nodes -- ONLY TWO CARDS ARE EXPOSED TO THIS WORKSPACE
+# This is the important asymmetry: lspci shows 6 cards, but only the cards with
+# a /dev/dri/renderD* node can be opened. Trust xbutil over lspci.
+crw-rw-rw- root kvm  226, 128  /dev/dri/renderD128
+crw-rw-rw- root kvm  226, 133  /dev/dri/renderD133
+crw-rw-rw- root root 237,   5  /dev/xclmgmt45568
+crw-rw-rw- root root 237,   0  /dev/xclmgmt6656
+renderD nodes: 2    xclmgmt nodes: 2
+
+### XRT
+"BUILD_VERSION"      : "2.19.194"
+"BUILD_BRANCH"       : "2025.1"
+"VERSION_HASH"       : "7d8151e6ee73c6ec2e99501a58c9c2eca6cc68ce"
+"BUILD_VERSION_DATE" : "Sun, 18 May 2025 05:07:44 -0700"
+xocl    : 2.19.194, 7d8151e6ee73c6ec2e99501a58c9c2eca6cc68ce   (module size 1957888)
+xclmgmt : 2.19.194, 7d8151e6ee73c6ec2e99501a58c9c2eca6cc68ce   (module size 1134592)
+Firmware Version : N/A
+
+### xbutil examine -- the two devices a program can open
+# NOTE: XRT 2.19 prints the header "Device(s) Present"; XRT 2.16 prints
+# "Devices present". A script matching only one reports zero devices.
+Device(s) Present
+|BDF            |Shell                          |Logic UUID                           |Device ID      |Ready|
+|[0000:1a:00.1] |xilinx_u55c_gen3x16_xdma_base_3|97088961-FEAE-DA91-52A2-1D9DFD63CCEF |user(inst=128) |Yes  |
+|[0000:b2:00.1] |xilinx_u55c_gen3x16_xdma_base_3|97088961-FEAE-DA91-52A2-1D9DFD63CCEF |user(inst=133) |Yes  |
+
+### xbmgmt examine -- matching management functions
+Device(s) Present
+|[0000:1a:00.0] |xilinx_u55c_gen3x16_xdma_base_3|97088961-FEAE-DA91-52A2-1D9DFD63CCEF |mgmt(inst=6656)  |Yes|
+|[0000:b2:00.0] |xilinx_u55c_gen3x16_xdma_base_3|97088961-FEAE-DA91-52A2-1D9DFD63CCEF |mgmt(inst=45568) |Yes|
+
+### platforms / shell firmware
+platform: xilinx_u55c_gen3x16_xdma_3_202210_1
+firmware: 97088961feaeda9152a21d9dfd63ccef      <- matches the cards' logic UUID
+firmware: b7ac1abe1e3e1cb686d5a81232452676
+firmware: sched.bin  sched_u50.bin  sched_v20.bin  sched_v30.bin
+
+### toolchain
+g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+Vitis / Vivado: not probed on this box (it is a RUN box; bitstreams were built
+                on csg-fpga-compile3, see nrp-compile-boxes.txt)
+
+### XRT headers used to build the host program
+/opt/xilinx/xrt/include/xrt/xrt_device.h        present
+/opt/xilinx/xrt/include/xrt/xrt_kernel.h        present
+/opt/xilinx/xrt/include/xrt/xrt_uuid.h          present
+/opt/xilinx/xrt/include/experimental/xrt_system.h   <- NOTE the spelling
+# xrt_system.h moves between XRT versions. On this box (2.19.194) it is at
+# experimental/xrt_system.h; the OCT nodes (2.16.204) also use that path, while
+# other 2.19 installs use xrt/experimental/. host/part_query.cpp probes all
+# three with __has_include.
+
+### host program built and run here
+g++ -std=c++17 -O2 -Wall -Wextra host/part_query.cpp -o part_query \
+    -I$XILINX_XRT/include -L$XILINX_XRT/lib -lxrt_coreutil -luuid -pthread
+# -> 57,456 bytes, clean under -Wall -Wextra
+
+### measurement produced on this machine
+[selfcheck] OK: 2 partitions, disjoint, covering all 50 vertices
+[hops] 69 hops over 11032 queries
+   per-hop us: min 380.5  p50 387.7  p90 397.8  max 430.3  mean 389.2
+   combine mean 199.89 us
+[device 0] H2D 1777.2 us | exec 2761.8 us | D2H 1684.5 us (totals)
+[device 1] H2D 1756.4 us | exec 2480.0 us | D2H 1734.0 us (totals)
+11032 queries, 0 mismatches -> PASS
+# single-query latency (batch of 1): 117.8 us

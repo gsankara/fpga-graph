@@ -1,0 +1,77 @@
+{
+  "design": "P",
+  "graph": "ring50",
+  "nparts": 2,
+  "split": "block",
+  "toolchain": {
+    "vitis": "2023.2",
+    "vivado": "2023.2 (SW Build 4029153, Fri Oct 13 20:13:54 MDT 2023) \u2014 invoked BY Vitis",
+    "xrt_at_build": "2.19.194 (branch 2025.1)",
+    "gpp_at_build": "13.3.0",
+    "generator": "graphgen/gen_hls_partitioned.py",
+    "kernel": "graph_engine_part",
+    "graph": "examples/ring50.edges"
+  },
+  "bitstreams": [
+    {
+      "name": "P_ring50_u280_p0of2",
+      "target": "u280",
+      "partition": "p0of2",
+      "sha256": "e5385375f21cff73c097ce3662fc0c818deb8023a45a1a72e0c5ef962e58bffa",
+      "bytes": 49355051,
+      "hls": {
+        "graph_engine.cpp": "a84b745b82f17ca9e4175a82a260699b0f4724b6243539ec414d57e8f1e8f039",
+        "graph_wire.hpp": "cfbeb3415e0d1ddba65331b42db82327b20f85b4c2cd2573b8ca1f0311db6c34"
+      },
+      "platform": "xilinx_u280_gen3x16_xdma_1_202211_1",
+      "vitis": "2023.2",
+      "wns": "+0.016 ns",
+      "whs": "+0.006 ns"
+    },
+    {
+      "name": "P_ring50_u280_p1of2",
+      "target": "u280",
+      "partition": "p1of2",
+      "sha256": "8b7346ba1e8c852b55163a5deac3d8a17a4939af81b4cc89b5ebff1e7b9feff2",
+      "bytes": 49649011,
+      "hls": {
+        "graph_engine.cpp": "1926a2b64aa84580aa7b71fc118a0ebfa6800d7f1985a95a29f97a81f75b026b",
+        "graph_wire.hpp": "2d77bc1fd666c3b56538333c926b015072a39e039f72eef61d03233e7140c560"
+      },
+      "platform": "xilinx_u280_gen3x16_xdma_1_202211_1",
+      "vitis": "2023.2",
+      "wns": "+0.016 ns",
+      "whs": "+0.006 ns"
+    },
+    {
+      "name": "P_ring50_u55c_p0of2",
+      "target": "u55c",
+      "partition": "p0of2",
+      "sha256": "87a4448869333fed842d82869993c8125c18bc4ed4c4aff99d1250014b099df9",
+      "bytes": 47299997,
+      "hls": {
+        "graph_engine.cpp": "a84b745b82f17ca9e4175a82a260699b0f4724b6243539ec414d57e8f1e8f039",
+        "graph_wire.hpp": "cfbeb3415e0d1ddba65331b42db82327b20f85b4c2cd2573b8ca1f0311db6c34"
+      },
+      "platform": "xilinx_u55c_gen3x16_xdma_3_202210_1",
+      "vitis": "2023.2",
+      "wns": "+0.003 ns",
+      "whs": "+0.009 ns"
+    },
+    {
+      "name": "P_ring50_u55c_p1of2",
+      "target": "u55c",
+      "partition": "p1of2",
+      "sha256": "c0d7fc55948f87de74deddcc785f09053e5a314ccd48502df38907686ade6751",
+      "bytes": 46637197,
+      "hls": {
+        "graph_engine.cpp": "1926a2b64aa84580aa7b71fc118a0ebfa6800d7f1985a95a29f97a81f75b026b",
+        "graph_wire.hpp": "2d77bc1fd666c3b56538333c926b015072a39e039f72eef61d03233e7140c560"
+      },
+      "platform": "xilinx_u55c_gen3x16_xdma_3_202210_1",
+      "vitis": "2023.2",
+      "wns": "+0.003 ns",
+      "whs": "+0.009 ns"
+    }
+  ]
+}

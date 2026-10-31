@@ -1,0 +1,56 @@
+{
+  "graph": "ring50.edges",
+  "name": "ring50",
+  "n": 50,
+  "edges": 50,
+  "directed": false,
+  "latch": true,
+  "stages": 1,
+  "part": 0,
+  "nparts": 2,
+  "split": "block",
+  "local_vertices": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24
+  ],
+  "local_terms": 50,
+  "cut": {
+    "n": 50,
+    "nparts": 2,
+    "total_terms": 100,
+    "cut_terms": 4,
+    "cut_fraction": 0.04,
+    "vertices_per_part": [
+      25,
+      25
+    ],
+    "terms_per_part": [
+      50,
+      50
+    ]
+  },
+  "kernel": "graph_engine_part"
+}

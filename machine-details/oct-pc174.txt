@@ -1,0 +1,107 @@
+##### hostname: pc174.csg-test2.octfpga-pg0.cloudlab.umass.edu
+##### captured: 2026-10-31T06:01:13Z UTC
+
+### OS / kernel
+Ubuntu 22.04.2 LTS
+Linux 5.15.0-198-generic #208-Ubuntu SMP Fri Sep 4 10:22:38 UTC 2026 x86_64
+glibc: 2.35
+
+### CPU
+Architecture: x86_64
+CPU(s): 64
+Model name: Intel(R) Xeon(R) Gold 6142 CPU @ 2.60GHz
+Thread(s) per core: 2
+Core(s) per socket: 16
+Socket(s): 2
+CPU max MHz: 3700.0000
+CPU min MHz: 1000.0000
+Flags: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid dca sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb cat_l3 cdp_l3 invpcid_single pti intel_ppin ssbd mba ibrs ibpb stibp tpr_shadow vnmi flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 hle avx2 smep bmi2 erms invpcid rtm cqm mpx rdt_a avx512f avx512dq rdseed adx smap clflushopt clwb intel_pt avx512cd avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local dtherm ida arat pln pts hwp hwp_act_window hwp_pkg_req pku ospke md_clear flush_l1d arch_capabilities ibpb_exit_to_user
+NUMA node(s): 2
+nproc: 64
+
+### memory
+               total        used        free      shared  buff/cache   available
+Mem:             566           1         564           0           0         562
+dimm summary:
+     12 	Size: 16 GB
+     12 	Size: 32 GB
+     24 	Speed: 2666 MT/s
+     24 	Type: DDR4
+
+### chassis / board
+HPE
+ProLiant DL380 Gen10
+U30
+
+### disk
+/dev/sda3        63G  4.3G   55G   8% /
+
+### Xilinx PCI devices
+37:00.0 Processing accelerators [1200]: Xilinx Corporation Alveo U280 XDMA Platform [10ee:500c]
+37:00.1 Processing accelerators [1200]: Xilinx Corporation Device [10ee:500d]
+cards (distinct PCI bus): 1
+device nodes: renderD=1 xclmgmt=1
+
+### PCIe link state per card
+  bus 37 via 36:00.0 : Speed 8GT/s Width x16 DLActive+ 
+
+### XRT
+  "BUILD_VERSION" : "2.16.204",
+  "BUILD_VERSION_DATE" : "Wed, 11 Oct 2023 23:45:57 -0700",
+  "BUILD_BRANCH" : "2023.2",
+  "VERSION_HASH" : "fa4c0045003fed0acea4593788dce5ef6d0b66ee",
+  "VERSION_HASH_DATE" : "Wed, 11 Oct 2023 20:43:32 -0700"
+  module xocl size 1957888
+  module xclmgmt size 1134592
+
+### xbutil examine (devices offered to a program)
+Devices present
+BDF             :  Shell                            Logic UUID                            Device ID       Device Ready*  
+-------------------------------------------------------------------------------------------------------------------------
+[0000:37:00.1]  :  xilinx_u280_gen3x16_xdma_base_1  283BAB8F-654D-8674-968F-4DA57F7FA5D7  user(inst=128)  Yes            
+
+
+* Devices that are not ready will have reduced functionality when using XRT tools
+
+### xbmgmt examine (mgmt view)
+Devices present
+BDF             :  Shell                            Logic UUID                            Device ID         Device Ready*  
+---------------------------------------------------------------------------------------------------------------------------
+[0000:37:00.0]  :  xilinx_u280_gen3x16_xdma_base_1  283BAB8F-654D-8674-968F-4DA57F7FA5D7  mgmt(inst=14080)  Yes            
+
+
+* Devices that are not ready will have reduced functionality when using XRT tools
+
+### Xilinx packages
+  xilinx-cmc-u280 1.3.5-3592445
+  xilinx-sc-fw-u280 4.3.28-1.ea1b92f
+  xilinx-u280-gen3x16-xdma-1-202211-1-dev 1-3585755
+  xilinx-u280-gen3x16-xdma-base 1-3585717
+  xilinx-u280-gen3x16-xdma-validate 1-3585755
+  xrt 2.16.204
+  xrt-xbflash2 2.16.204
+
+### platforms / shell firmware
+  platform: xilinx_u280_gen3x16_xdma_1_202211_1
+  firmware: 283bab8f654d8674968f4da57f7fa5d7
+  firmware: fb2b2c5a19ed63593fea95f51fbc8eb9
+  firmware: sched.bin
+  firmware: sched_u50.bin
+  firmware: sched_v20.bin
+  firmware: sched_v30.bin
+
+### toolchain
+g++ (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0
+Python 3.10.12
+
+### network interfaces
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+eno5             UP             192.168.40.32/24 fe80::4adf:37ff:fe40:3d50/64 
+eno1             UP             198.22.255.186/24 metric 1024 fe80::d267:26ff:fed1:5dac/64 
+eno6             DOWN           
+eno2             DOWN           
+eno3             DOWN           
+eno4             DOWN           
+link speeds:
+  eno1: 1000 Mb/s
+  eno5: 10000 Mb/s

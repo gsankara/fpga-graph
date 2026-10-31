@@ -1,0 +1,106 @@
+##### NRP Coder compile boxes -- where the bitstreams were BUILT
+##### NOTE ON PROVENANCE
+# Assembled from session captures 2026-10-30 23:3x - 2026-10-31 05:xx UTC.
+# csg-fpga-compile3 was Stopped before a consolidated capture could run; both
+# entries below are values read off the boxes during the build session.
+# Fields never probed are marked "not probed".
+
+================================================================================
+### csg-fpga-compile0   -- built the U280 pair
+================================================================================
+hostname      : coder-sankarang-csg-fpga-compile0
+OS            : Ubuntu 24.04.5 LTS
+nproc         : 32
+memory        : 1007 GB total (free -g), ~837 GB available at build time
+g++           : (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+sudo          : yes (uid 1000 coder, groups coder, docker)
+disk          : /home/coder 100 G (rbd, 97 G free) ; / 1.5 T overlay
+FPGA cards    : NONE -- compile-only box
+XRT           : 2.19.194 (branch 2025.1)
+
+Vitis installs : /tools/Xilinx/Vitis/2021.2
+                 /tools/Xilinx/Vitis/2023.2      <- USED for all builds
+                 /tools/Xilinx/Vitis/2024.2
+Vivado installs: /tools/Xilinx/Vivado/2021.2
+                 /tools/Xilinx/Vivado/2023.1
+                 /tools/Xilinx/Vivado/2023.2     <- invoked BY Vitis 2023.2
+                 /tools/Xilinx/Vivado/2024.2
+
+platforms (as shipped) : xilinx_u55c_gen3x16_xdma_3_202210_1
+platforms (added)      : xilinx_u280_gen3x16_xdma_1_202211_1
+  # The U280 development platform was NOT on the image. Installed from
+  #   xilinx-u280-gen3x16-xdma-1-202211-1-dev_1-3585755_all.deb
+  #   183,844,672 bytes
+  #   sha256 050b2a17b06c5d905a890affd929a1e5eb4dfaf123c28b4c16444fcd94326952
+  # hand-carried: neither AMD's openDownload (404s every dev-platform name) nor
+  # resources.fabric-testbed.net (ACL'd to FABRIC address space) can supply it.
+  # Its only dependency is xrt (>=2.13, <3), satisfied by the image's 2.19.194.
+  # xpfm used for the builds (pinned explicitly, not found by glob):
+  #   /opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/
+  #       xilinx_u280_gen3x16_xdma_1_202211_1.xpfm
+  #   sha256 of the .xpfm 33ffbb50935e524e4feafd0cb3b8c39429a7f911b0c42dff065e2f3097fe2bc6
+  #   hw/hw.xsa 127,466,929 bytes
+
+tools invoked during one build (counted from the log):
+  v++ x27,  vitis_hls x7,  vivado x1
+  # Vitis drives HLS and the platform link; Vivado runs underneath it for
+  # synthesis and place-and-route. Vivado alone cannot build this design.
+
+build command:
+  TARGET=u280 VITIS_VER=2023.2 PARALLEL=0 STALL_LIMIT=900 \
+  XPFM=/opt/xilinx/platforms/xilinx_u280_gen3x16_xdma_1_202211_1/xilinx_u280_gen3x16_xdma_1_202211_1.xpfm \
+  bash scripts/build_part.sh ring50 2 block
+
+build timeline (UTC):
+  23:44:36  platform resolved
+  23:44:39  p0 COMPILE START      23:56:22  COMPILE END rc=0
+  23:56:22  p0 LINK START         02:23:43  LINK END rc=0   (2 h 27 m)
+  02:23:44  p1 COMPILE START      02:33:48  COMPILE END rc=0
+  02:33:48  p1 LINK START         04:55:06  LINK END rc=0   (2 h 21 m)
+  BUILD_RESULT part=0 ... wns=0.016 whs=0.006 timing_met=yes
+  BUILD_RESULT part=1 ... wns=0.016 whs=0.006 timing_met=yes
+
+================================================================================
+### csg-fpga-compile3   -- built the U55C pair
+================================================================================
+hostname      : coder-sankarang-csg-fpga-compile3
+OS            : Ubuntu 24.04.5 LTS
+nproc         : 32
+memory        : ~767 GB free physical reported by Vivado during the probe
+g++           : 13.3.0
+FPGA cards    : NONE -- compile-only box
+XRT           : 2.19.194 (branch 2025.1)
+Vitis         : 2021.2, 2023.2 (used), 2024.2
+Vivado        : v2023.2 (SW Build 4029153, Fri Oct 13 20:13:54 MDT 2023)
+platforms     : xilinx_u55c_gen3x16_xdma_3_202210_1   (U280 xpfm ABSENT)
+U55C part     : xcu55c-fsvh2892-2L-e  (confirmed by a Vivado project probe)
+libudev shim  : built, 16,176 bytes
+  # Vivado's WebTalk/licensing fingerprint dlopens the SYSTEM libudev; on this
+  # 24.04/glibc-2.39 image a shim is required. LD_PRELOAD does not work because
+  # the symbols are dlsym'd off a dlopen handle -- it must be on
+  # LD_LIBRARY_PATH.
+
+build command:
+  TARGET=u55c VITIS_VER=2023.2 PARALLEL=0 STALL_LIMIT=900 \
+  bash scripts/build_part.sh ring50 2 block
+
+build timeline (UTC):
+  p0 LINK START 22:08:54 ... p1 LINK END 01:11:56
+  BUILD_RESULT part=0 ... wns=0.003 whs=0.009 timing_met=yes
+  BUILD_RESULT part=1 ... wns=0.003 whs=0.009 timing_met=yes
+
+================================================================================
+### notes that apply to both compile boxes
+================================================================================
+- Both were created from the SAME `u55c-xilinx` Coder template, so the template
+  name says nothing about which card a workspace targets, or whether it has
+  cards at all. compile0 and compile3 have none; csg-2fpga has six.
+- Both auto-stop after 4 days (`STOPS AFTER 4d`).
+- `build_part.sh` gates on `sim/check_wiring.py` before any link: structural +
+  9,828 behavioural queries, under a second, no compiler needed.
+- Completion is signalled by `BUILD_DONE` written INTO THE LOG plus a
+  `BUILD_STATUS_<target>` file. There is no `BUILD_DONE_<target>` file; a
+  watcher polling for one waits forever.
+- WNS/WHS are read from
+  `_xl/reports/link/imp/impl_1_hw_bb_locked_timing_summary_routed.rpt`,
+  not from `vpp_link.log`.
