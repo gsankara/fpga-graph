@@ -82,3 +82,14 @@ One weave spanning three inputs:
 3. a FABRIC FPGA node to run it.
 - Must carry the build-box lessons: IP-cache crash workaround, link watchdog,
   and the stale-process sweep (see `fpga` skill §6).
+
+## Deferred to a later session
+
+**Consolidated weave** — one weave that runs the NRP, OCT and FABRIC partition
+arms and emits a single comparison table. The three arm weaves are published
+and already write a common `last_run.json` shape, so this should merge their
+output rather than re-implement any measurement. Constraints: keep
+`compare_part.py`'s default sweep on every arm (that is what makes the numbers
+comparable), run whichever arms are available and mark the rest skipped rather
+than failing, and always print the ICMP RTT beside each per-hop figure. See
+`../HANDOFF-2026-10-31.md`.
