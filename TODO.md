@@ -83,7 +83,38 @@ One weave spanning three inputs:
 - Must carry the build-box lessons: IP-cache crash workaround, link watchdog,
   and the stale-process sweep (see `fpga` skill §6).
 
+**Path walked by hand 2026-11-03** for `gsankara/sequence`, so the weave has a
+worked reference: built on `csg-fpga-compile0`, staged to FABRIC slice
+`fpga-part-internode` node `part0` (losa-w2), run there. Results and the
+prebuilt bitstream live in that repo under `fpga/RESULTS_U280_HW.md` and
+`fpga/prebuilt/repeater_u280_4lane/`. Four things the weave must get right,
+each of which cost time here:
+
+- **Build the host on the machine that runs it.** compile0 is Ubuntu 24.04 /
+  glibc 2.39 / XRT 2.19.194; FABRIC U280 nodes are 22.04 / glibc 2.35 / XRT
+  2.16.204. The compile0 binary does not load.
+- **`v++` exits 0 on a timing failure.** That build recorded `LINK_RC=0` and
+  `BUILD_RESULT status=ok` while missing its 300 MHz target by 834 ps. The
+  weave must read `_xl/reports/link/imp/*_timing_summary_routed.rpt`, and
+  should also check `xbutil examine --report platform` for the clock the card
+  actually loaded — `v++` silently derates via `AUTO-FREQ-SCALING-04`, so the
+  target in the `.cfg` is a request, not a result.
+- **`coder ssh` cannot stream a binary on stdout.** `tar cf - ... > local.tar`
+  died at 118 bytes. Tar to a remote file, then pull it (base64 round-trip
+  worked, sha256-verified end to end).
+- **`scp` is denied in this container.** Use `rsync -a -e ssh`; the FABRIC hop
+  needs `-i <slice_key> -F fabric_config/ssh_config`, and IPv6 management
+  addresses need brackets in the rsync target.
+
 ## Deferred to a later session
+
+**`heterojit` retarget** — resuming 2026-11-04. Its kernel is already
+`extern "C"` with `m_axi ... offset=slave` on three pointers, so it is a
+straight retarget to the U280 rather than an interface rewrite. Needs
+`csg-fpga-compile3` started and the U280 dev platform installed there
+(`/home/fabric/work/u280-debs/...deb`, sha256
+`050b2a17b06c5d905a890affd929a1e5eb4dfaf123c28b4c16444fcd94326952`). Builds run
+one at a time: nothing else should be linking while it does.
 
 **Consolidated weave** — one weave that runs the NRP, OCT and FABRIC partition
 arms and emits a single comparison table. The three arm weaves are published
