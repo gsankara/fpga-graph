@@ -139,7 +139,12 @@ Two consequences:
    bottleneck. This adds the third: the *compute* the FPGA does is work a single
    core does faster, at every size the design can be built at.
 
-2. **Ask 2 is the unlock, not an optimisation.** The flat 1000-term OR basic
+2. **Ask 2 is necessary but, we now know, not sufficient.** The GPU baseline
+   shows the per-hop overhead is a *separate* problem from the term ceiling: even
+   with unlimited capacity the design would still pay ~388 µs a hop, which loses
+   to a GPU by 5.7×. See `RESULTS_GPU_BASELINE.md` §4.
+
+3. **Ask 2 is the unlock for capacity, not an optimisation.** The flat 1000-term OR basic
    block is precisely what makes csynth time out, which is what caps the design
    at ~20k terms, which is what keeps it below break-even. An explicit
    parameterised RTL binary OR tree replaces that basic block. **It must buy at
@@ -157,11 +162,14 @@ Two consequences:
   A design that keeps many hops on-card between host round trips, or that
   streams a CSR graph rather than baking it, has a different cost structure
   entirely and is not measured here.
-- **No GPU number yet.** Ask 1's GPU half is outstanding; `host/gpu_hop.cu` is
-  not written. A GPU's PCIe round trip is the same order as the FPGA's, so the
-  interesting question is whether its compute advantage over one CPU core shows
-  up before that round trip swamps it — i.e. the same crossover question, with a
-  different constant.
+- **The GPU half is now measured** — see `RESULTS_GPU_BASELINE.md`. The answer
+  to the crossover question posed here: an A30 doing the *same* PCIe round trip
+  lands at 68.4 µs at 20,000 OR terms, beating one core (105.2 µs) above
+  ~12,600 terms, and beating the two-FPGA arm by 5.7× at the FPGA's ceiling.
+  Its `roundtrip` cost turns out to scale with **state size**, not OR terms, so
+  on a large sparse graph (n=100,000) it loses to the CPU again. Crucially it
+  shows the FPGA's ~388 µs per hop is **not** an inherent cost of the
+  one-hop-per-round-trip structure.
 - **One CPU, one compiler.** EPYC 7543 at 8 vCPU. The OCT arm's hosts are
   2×64-core; a 128-core run of the `word` kernel with a persistent pool would
   move the crossover further out, not closer in.

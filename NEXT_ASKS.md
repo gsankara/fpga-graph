@@ -11,6 +11,15 @@ first would measure the wrong thing. See "Sequencing" at the end.
 
 ## 1. Software CPU baseline and a separate GPU baseline for the graph unit
 
+> **STATUS 2026-11-06: DONE, both halves.** CPU in `RESULTS_CPU_BASELINE.md`
+> (`host/cpu_hop.cpp`), GPU in `RESULTS_GPU_BASELINE.md` (`host/gpu_hop.cu`,
+> measured on an A30 at HAWI). Both validated against the Python reference on
+> the full 11,032-query sweep with 0 mismatches. Headline: at the FPGA's own
+> ~20,000-term ceiling the ordering is GPU 68.4 µs < CPU 105.2 µs < FPGA
+> 387.7 µs, and the GPU result shows the FPGA's per-hop overhead is not
+> inherent to the round-trip structure. The open questions below are answered
+> in those two files; the text is kept as the original assessment.
+
 **Why it matters more than it looks.** The measured FPGA cost for `ring50` is
 ~117 µs fixed per hop, of which the kernel itself is under a microsecond — the
 hop is PCIe, enqueue and doorbell, not compute. A CPU doing a 50-bit OR per
