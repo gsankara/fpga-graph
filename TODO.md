@@ -155,3 +155,30 @@ too rather than relying on it.
 Verify with: the existing 6-config `gen_rtl_or.py` vector check (must stay
 PASS, `oob_warnings=0`), plus a synth run comparing LUT/FF against the
 fan-in-sized build at the same graph.
+
+## Predict the link result instead of running it (user ask, 2026-11-07)
+
+Every U280 link so far has closed timing at essentially the same slack:
+`ring50` tree p0 and p1 both landed **WNS +0.016 ns / WHS +0.006 ns**, and
+`scripts/build_part.sh`'s own comment records that every design-C bitstream
+closed within 16 ps too. That is the tool stopping once the constraint is met,
+not the design having room -- which means the number may be nearly independent
+of what we put in front of it.
+
+If that holds across designs of very different size, the routed timing result
+is predictable and a 22 h place-and-route is not needed to learn it. Worth
+collecting: WNS/WHS against OR terms over the links we run anyway, and the
+point (if any) where slack starts to move. `build_part.sh` already extracts
+both from `*timing_summary_routed.rpt` into the BUILD_RESULT line, so the data
+accumulates for free -- this is a matter of recording and plotting it, not of
+new instrumentation.
+
+Two cautions before trusting a prediction:
+  * +16 ps is pass-by-a-hair. A design that genuinely cannot close would also
+    report a small number, just negative, so the pattern says nothing about
+    where the cliff is until we have seen one fail.
+  * At ring50's 100 OR terms the tree is nowhere near its depth limit, so this
+    slack is the shell and AXI path, not the reduction. The prediction is only
+    worth anything once there are large-design points in the set.
+
+**Separate problem, explicitly not this one:** making the build itself faster.
