@@ -18,6 +18,28 @@ FF  ≈ 2·N
 LUT ≈ E/5 + N        (E = total OR terms = sum of in-degrees)
 ```
 
+> **MEASURED 2026-11-07, and this model is wrong on both counts.** A five-point
+> csynth sweep of the tree-shaped kernel (N fixed at 1000, E from 20,000 to
+> 128,000 — `RESULTS_ASK2_OR_TREE.md`) fits:
+>
+> ```
+> FF  ≈ 2.03·E + 7,900     (R² 0.9994)   — scales with TERMS, not nodes
+> LUT ≈ 0.690·E + 25,800   (R² 0.9958)   — 3.4x the E/5 estimate
+> ```
+>
+> Two corrections follow. **FF scales with E, not N**, because every tree node
+> is registered, so the `FF ≈ 2·N` line and the "N ≲ ~10⁶ nodes" conclusion
+> below do not hold. And **FF binds before LUT**, the reverse of what this file
+> predicts: the FF-limited ceiling is ~1.28M terms against a LUT-limited
+> ~1.85M. The headline becomes **~1.0M terms per card** at an assumed 80%
+> usable device, or ~340k inside a single SLR.
+>
+> Caveats that keep this from being a buildable guarantee: these are csynth
+> estimates extrapolated 8x past the largest measured point, no post-route
+> number exists, the 20% shell cost is an assumption rather than a measurement,
+> and **N was fixed at 1000 in every run so the per-vertex cost is unmeasured**
+> — which is exactly the axis the `FF ≈ 2·N` claim was about.
+
 ## Device: Alveo U280 (`xcu280-fsvh2892-2L-e`)
 
 `LUT 1,303,680 · FF 2,607,360 · BRAM 4032 · DSP 9024 · URAM 960 · 3 SLRs`
@@ -85,6 +107,18 @@ grows superlinearly with the single unrolled basic block (9 min -> 86 min ->
 timeout across a 2x, 2x size step). At N=1000 the design uses only ~74k LUT
 (~6%) and ~14k FF (<1%) of the U280 -- resources are nowhere near full, but the
 HLS front end can't schedule a bigger flat kernel in reasonable time.
+
+> **SUPERSEDED for the tree-shaped kernel, 2026-11-07.** The ~20k ceiling
+> below is a property of the FLAT OR expression, not of the device or of the
+> design. Rewriting each vertex's fan-in as an explicit balanced binary tree
+> takes csynth to **128,000 terms in 9,527 s at 8.6% LUT / 10.3% FF**, while
+> the flat form does not finish even at 20,000 terms under a 9,000 s cap. See
+> `RESULTS_ASK2_OR_TREE.md`. Note also that at the same 20,000 terms the tree
+> kernel uses 37,830 LUT / 49,038 FF against the flat row's 73,872 / 14,400
+> below — about half the LUTs for ~3.4x the flip-flops — though the two rows
+> come from different generators (`gen_hls.py` multi-stage vs
+> `gen_hls_partitioned.py --nparts 1`), so that is a direction, not a clean
+> A/B.
 
 **Practical ceiling for a single flat-baked kernel: ~1000 nodes / ~20k OR
 terms.** This is ~1000x below the resource-based estimate above, and the real

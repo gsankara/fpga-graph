@@ -36,6 +36,102 @@ FFs** (25% / 31% of a single SLR). 128,000 is not the limit either; it is the
 largest point queued. The limit is now csynth wall time, which is growing
 roughly linearly in terms (~74 ms/term) rather than exploding.
 
+## 1a. These runs are ONE KERNEL OWNING THE WHOLE GRAPH
+
+The top is called `graph_engine_part`, which invites the assumption that each
+run is one half of a two-card split. It is not. All five were generated with
+`--nparts 1`: `partition.meta.json` records `n=1000, nparts=1, part=0,
+local_terms=20000..128000, cut_terms=0`, and `graph_engine.cpp` contains
+exactly **1000** `res[...]` row assignments in every run.
+
+So **128,000 terms is one card carrying the entire 1000-vertex graph.** There
+is no halving to apply, and the per-card figure and the whole-graph figure are
+the same number here. A genuine `--nparts M` split would put ~1/M of the terms
+on each card, so M cards reach ~M times the per-card ceiling -- but none of
+these runs demonstrates that, and the inter-card path is unmeasured.
+
+## 1b. Utilization: the design was never resource-limited
+
+| OR terms | LUT | %dev | %SLR | FF | %dev | %SLR | BRAM | DSP | URAM |
+|---|---|---|---|---|---|---|---|---|---|
+| 20,000 | 37,830 | 2.90 | 8.71 | 49,038 | 1.88 | 5.64 | 62 | 0 | 0 |
+| 40,000 | 53,177 | 4.08 | 12.24 | 88,338 | 3.39 | 10.16 | 62 | 0 | 0 |
+| 64,000 | 72,764 | 5.58 | 16.74 | 139,686 | 5.36 | 16.07 | 62 | 0 | 0 |
+| 96,000 | 92,952 | 7.13 | 21.39 | 199,502 | 7.65 | 22.96 | 62 | 0 | 0 |
+| 128,000 | 112,319 | **8.62** | 25.85 | 269,486 | **10.34** | 31.01 | 62 | 0 | 0 |
+
+**At the old 20,000-term ceiling the design used 2.9% of the LUTs.** The
+ceiling was never silicon; 97% of the device went unused because of how the
+source was written.
+
+Where it goes, at 128,000 terms: LUTs are **59% Expression** (the tree nodes
+and the `do_hop` muxes) and 41% Instance; FFs are **68% Instance / 32%
+Register and zero Expression** -- pipeline registers, not logic. The Instance
+FFs are not the AXI adapters: 302 instances of `icmp_*ns_*ns_1_2_1` at 580 FF
+/ 130 LUT each account for ~175k FF, and that instance count tracks size
+(45 / 93 / 156 / 222 / 302).
+
+**BRAM 62 is entirely the three AXI adapters (30 + 30 + 2)** and has nothing to
+do with graph state: `s[GW_N]` is `ARRAY_PARTITION complete` into flops and
+`GW_NW` is 2. That is why BRAM never moves -- this sweep varied degree only,
+never vertex count.
+
+## 1c. Capacity: FF binds, at roughly 1.0M terms per card
+
+Least-squares fits over the five points:
+
+| quantity | per OR term | fixed | R² |
+|---|---|---|---|
+| LUT | **0.690** | 25,807 | 0.9958 |
+| FF | **2.030** | 7,914 | 0.9994 |
+| csynth wall | 0.0794 s | -982 s | 0.9908 |
+
+| budget | LUT-limited | FF-limited | binding |
+|---|---|---|---|
+| 100% device (unreachable) | 1,852,856 | **1,280,444** | FF |
+| 80% device (20% shell, **assumed**) | 1,474,801 | **1,023,575** | FF |
+| 100% of one SLR | 592,673 | **424,216** | FF |
+| 80% of one SLR | 466,655 | **338,593** | FF |
+
+**Headline: ~1.0M OR terms per card, FF-bound.** Staying inside one SLR to
+avoid SLL crossing entirely: **~340k terms.**
+
+As graph shapes (terms = N x average degree, a strict hyperbola):
+
+| avg degree | 80% device (1,023,575 terms) | one SLR 80% (338,593) |
+|---|---|---|
+| 2 | 511,788 vertices | 169,296 |
+| 20 | 51,179 | 16,930 |
+| 32 | 31,987 | 10,581 |
+| 64 | 15,993 | 5,291 |
+| 128 | 7,997 | 2,645 |
+
+**The low-degree/high-N corner is the worst choice in practice even though the
+resource fit favours it.** State is `ceil(N/512)` 512-bit words per query per
+direction, so 512k vertices at degree 2 moves 64 KB per query per direction
+against 1 KB for 8k vertices at degree 128 -- a **64x** difference in PCIe
+traffic for identical logic. Per `RESULTS_GPU_BASELINE.md` the hop is already
+transfer- and enqueue-dominated, so that corner loses on exactly the axis that
+already hurts.
+
+### What these numbers are not
+
+- **Synthesis estimates extrapolated 8x** beyond the largest measured point.
+  No post-route number exists for any of them.
+- **The 20% shell figure is an assumption.** The platform directory holds only
+  `.xsa`/`.spfm`/`.xpfm` -- no utilization data -- so no measured shell cost
+  was available.
+- **Per-vertex cost is unmeasured.** N was fixed at 1000 in all five runs, so
+  the fits are in terms only. The degree-2 row above varies N by 500x on an
+  axis nothing measured; treat it as the weakest line in the table.
+- **csynth time probably binds before resources do.** At 79 ms/term, 1.0M
+  terms is ~22.6 h (a convex quadratic fit gives ~33 h), and `graph_engine.cpp`
+  would grow from 7.25 MB / 131k lines to ~58 MB / ~1M lines, which nothing has
+  tested.
+- **SLR crossing is unmeasured.** A design over one SLR must cross ~23k SLL per
+  boundary, and a 1000-bit broadcast state network can exhaust that
+  independently of LUT/FF.
+
 ## 2a. What the timing numbers actually say
 
 **There is no implementation timing yet.** These are csynth runs; no Vivado
@@ -135,9 +231,13 @@ link to an .xclbin on the U280 platform. No hardware number here.
 ## 5. Reproducing
 
 ```bash
-# generate a partitioned design with the tree-shaped reduction
-python3 graphgen/gen_hls_partitioned.py --nodes 1000 --degree 128 \
-        --or-mode tree -o /tmp/d128_tree
+# generate a design with the tree-shaped reduction. gen_hls_partitioned.py
+# takes an .edges file and has no --nodes/--degree of its own; make_graph.py
+# makes the graph. --part is REQUIRED. The sweep used --nparts 1, i.e. one
+# kernel owning the whole graph (see section 1a).
+python3 graphgen/make_graph.py --nodes 1000 --degree 128 -o g1000d128.edges
+python3 graphgen/gen_hls_partitioned.py g1000d128.edges --part 0 --nparts 1 \
+        --or-mode tree --name n1000d128 -o /tmp/d128_tree
 # csynth it (on a box with Vitis HLS and the U280 part)
 vitis_hls -f hls/run_hls_part.tcl   # top graph_engine_part, 3.33 ns
 
