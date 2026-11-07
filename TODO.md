@@ -124,3 +124,34 @@ output rather than re-implement any measurement. Constraints: keep
 comparable), run whichever arms are available and mark the rest skipped rather
 than failing, and always print the ICMP RTT beside each per-hop figure. See
 `../HANDOFF-2026-10-31.md`.
+
+## Ask 2 follow-up: uniform 1000-input trees (user ask, 2026-11-07)
+
+Instead of sizing each vertex's `or_tree` to that vertex's own fan-in, give
+EVERY vertex `N_IN = N` (all 1000) and drive the non-neighbour leaves with
+constant `1'b0`. ORing in a zero changes nothing, so the value is identical;
+what changes is that every tree has the same shape.
+
+Why this is better than what `gen_rtl_or.py` does today:
+
+  * Depth becomes `ceil(log2(N))` for every vertex, a CONSTANT, independent of
+    the graph. Today depth varies with fan-in, and with `REG_EVERY > 0` that
+    means different vertices' bits land on different cycles -- `state_out`
+    would silently mix two hops. The current workaround is to pad each gather
+    to the graph's MAX fan-in; padding to N instead removes the per-graph
+    parameter entirely and makes the latency a property of the module, not of
+    the input graph.
+  * One `or_tree` instantiation for the whole design, so the generator emits
+    a mask per vertex rather than a differently-shaped tree per vertex.
+
+The cost to check, not assume: synthesis constant-folds a leaf tied to 0, so
+the netlist should collapse back to roughly the true fan-in's LUT count --
+i.e. uniformity in the SOURCE, real cost in silicon. That is the claim to
+verify, because if Vivado instead keeps 1000 live leaves per vertex the LUT
+cost goes quadratic in N. The registered levels should survive folding (they
+are explicit reset FFs), which is what keeps the latency uniform; confirm that
+too rather than relying on it.
+
+Verify with: the existing 6-config `gen_rtl_or.py` vector check (must stay
+PASS, `oob_warnings=0`), plus a synth run comparing LUT/FF against the
+fan-in-sized build at the same graph.
