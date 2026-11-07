@@ -31,15 +31,63 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
 import reference                                        # noqa: E402
 import partition as part                                # noqa: E402
 
-ROW = re.compile(r'^\s*res\[(\d+)\]\s*=\s*do_hop\s*\?\s*\((.*?)\)\s*:\s*s\[(\d+)\]\s*;\s*$')
+# The row assignment, in either OR shape. --or-mode flat puts the whole
+# parenthesised OR inline; --or-mode tree assigns a named temporary per tree
+# node and the row reads the root. Capturing the RHS loosely and tokenising it
+# afterwards covers both, plus the degenerate fan-in-1 row whose RHS is a bare
+# s[k] with no parentheses at all.
+ROW = re.compile(r'^\s*res\[(\d+)\]\s*=\s*do_hop\s*\?\s*(.+?)\s*:\s*s\[(\d+)\]\s*;\s*$')
 TERM = re.compile(r's\[(\d+)\]')
+TMP_DEF = re.compile(r'^\s*ap_uint<1>\s+(t_[0-9A-Za-z_]+)\s*=\s*(.+?)\s*;\s*$')
+LEAF = re.compile(r'^s\[(\d+)\]$')
+
+
+def expand(expr, temps, seen):
+    """Flatten an OR expression to the list of state indices it reads.
+
+    Returns a LIST, not a set: a generator bug that ORs the same neighbour
+    twice must still fail the comparison against in_adj, so duplicates have to
+    survive. In tree mode the leaves are reached through temporaries, and a
+    temporary that referred to itself would otherwise recurse forever, hence
+    `seen`.
+    """
+    out = []
+    for atom in expr.split("|"):
+        atom = atom.strip().strip("()").strip()
+        m = LEAF.match(atom)
+        if m:
+            out.append(int(m.group(1)))
+            continue
+        if atom in temps:
+            if atom in seen:
+                raise AssertionError("OR temporary %r is cyclic" % atom)
+            out.extend(expand(temps[atom], temps, seen | {atom}))
+            continue
+        # Anything else -- a stray & or ^, a call, an unknown name -- would
+        # evaluate differently in hardware than in this checker, so refuse it
+        # rather than guess.
+        raise AssertionError("unrecognised OR atom %r in %r" % (atom, expr))
+    return out
 
 
 def parse_rows(path):
     """vertex -> sorted list of source vertices in its OR expression."""
     rows = {}
     dup = []
-    for line in open(os.path.join(path, "graph_engine.cpp")):
+    src = open(os.path.join(path, "graph_engine.cpp")).read().splitlines()
+
+    # First pass: every OR-tree temporary. Collected up front so a row may
+    # reference one regardless of emission order.
+    temps = {}
+    for line in src:
+        m = TMP_DEF.match(line)
+        if not m:
+            continue
+        if m.group(1) in temps:
+            raise AssertionError("OR temporary %r defined twice" % m.group(1))
+        temps[m.group(1)] = m.group(2)
+
+    for line in src:
         m = ROW.match(line)
         if not m:
             continue
@@ -48,12 +96,7 @@ def parse_rows(path):
             raise AssertionError("row %d passes through s[%d]" % (v, passthru))
         if v in rows:
             dup.append(v)
-        # Reject anything that is not a pure OR of state bits: a stray & or ^
-        # would evaluate differently in hardware than in this checker.
-        stripped = TERM.sub("", expr).replace("|", "").strip()
-        if stripped:
-            raise AssertionError("row %d has non-OR content: %r" % (v, expr))
-        rows[v] = sorted(int(t) for t in TERM.findall(expr))
+        rows[v] = sorted(expand(expr, temps, frozenset()))
     if dup:
         raise AssertionError("duplicate rows for vertices %s" % dup)
     return rows

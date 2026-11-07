@@ -20,6 +20,20 @@ NAME="${1:-ring50}"
 NPARTS="${2:-2}"
 SPLIT="${3:-block}"
 TARGET="${TARGET:-u280}"
+# Shape of each vertex's fan-in OR. 'flat' is the original one-expression-per-
+# vertex form and stays the default so existing invocations are unchanged.
+# 'tree' emits an explicit balanced binary tree of 2-input ORs; csynth finishes
+# at 128,000 terms with it and times out at 20,000 without it
+# (RESULTS_ASK2_OR_TREE.md). Tree builds go to their own build dir: the two
+# forms are bit-identical in VALUE, so a shared dir would let one silently
+# stand in for the other and there would be no way to tell which xclbin a
+# measurement came from.
+OR_MODE="${OR_MODE:-flat}"
+case "$OR_MODE" in
+  flat) DSUF="" ;;
+  tree) DSUF="_tree" ;;
+  *)    echo "BUILD_RESULT status=fail reason=unknown_or_mode:$OR_MODE"; exit 1 ;;
+esac
 VITIS_VER="${VITIS_VER:-2023.2}"
 STALL_LIMIT="${STALL_LIMIT:-900}"
 PARALLEL="${PARALLEL:-0}"        # 1 = link all partitions at once (heavy)
@@ -34,7 +48,7 @@ case "$TARGET" in
   *)    echo "BUILD_RESULT status=fail reason=unknown_target:$TARGET"; exit 1 ;;
 esac
 
-echo "[$(date +%H:%M:%S)] target=$TARGET graph=$NAME nparts=$NPARTS split=$SPLIT"
+echo "[$(date +%H:%M:%S)] target=$TARGET graph=$NAME nparts=$NPARTS split=$SPLIT or_mode=$OR_MODE"
 
 source "/tools/Xilinx/Vitis/$VITIS_VER/settings64.sh" 2>/dev/null || {
     echo "BUILD_RESULT status=fail reason=no_vitis_$VITIS_VER"; exit 1; }
@@ -71,9 +85,10 @@ echo "[$(date +%H:%M:%S)] platform: $XPFM"
 # the links means a generator bug costs a second, not two hours of place-and-route.
 DIRS=()
 for ((K=0; K<NPARTS; K++)); do
-    D="build/${NAME}_p${K}of${NPARTS}_${SPLIT}"
+    D="build/${NAME}_p${K}of${NPARTS}_${SPLIT}${DSUF}"
     python3 graphgen/gen_hls_partitioned.py "examples/${NAME}.edges" \
-            --part "$K" --nparts "$NPARTS" --split "$SPLIT" --name "$NAME" || {
+            --part "$K" --nparts "$NPARTS" --split "$SPLIT" --name "$NAME" \
+            --or-mode "$OR_MODE" -o "$D" || {
         echo "BUILD_RESULT status=fail reason=generate_failed_part$K"; exit 1; }
     DIRS+=("$D")
 done
@@ -94,7 +109,7 @@ done
 
 link_one() {
     local K="$1"
-    local D="$ROOT/build/${NAME}_p${K}of${NPARTS}_${SPLIT}"
+    local D="$ROOT/build/${NAME}_p${K}of${NPARTS}_${SPLIT}${DSUF}"
     local TAG="p${K}of${NPARTS}"
     rm -rf "$D/_x" "$D/_xl"          # never reuse a temp dir from a crashed run
 
@@ -147,7 +162,7 @@ link_one() {
 
     if [ -f "$D/kernel.xclbin" ]; then
         echo "BUILD_RESULT part=$K status=ok target=$TARGET" \
-             "bytes=$(stat -c%s "$D/kernel.xclbin")" \
+             "or_mode=$OR_MODE bytes=$(stat -c%s "$D/kernel.xclbin")" \
              "sha256=$(sha256sum "$D/kernel.xclbin" | cut -d' ' -f1)" \
              "wns=${WNS:-NA} whs=${WHS:-NA} timing_met=$MET"
     else
@@ -183,15 +198,15 @@ done
 
 {
   echo "build finished at $(date)"
-  echo "target=$TARGET graph=$NAME nparts=$NPARTS split=$SPLIT"
+  echo "target=$TARGET graph=$NAME nparts=$NPARTS split=$SPLIT or_mode=$OR_MODE"
   for ((K=0; K<NPARTS; K++)); do
-    D="build/${NAME}_p${K}of${NPARTS}_${SPLIT}"
+    D="build/${NAME}_p${K}of${NPARTS}_${SPLIT}${DSUF}"
     if [ -f "$D/kernel.xclbin" ]; then
       echo "p$K: OK $(stat -c%s "$D/kernel.xclbin") bytes"
     else
       echo "p$K: MISSING xclbin (see $D/vpp_*.log)"
     fi
   done
-} > "BUILD_STATUS_${TARGET}" 2>&1
+} > "BUILD_STATUS_${TARGET}${DSUF}" 2>&1
 echo BUILD_DONE
 exit $rc
