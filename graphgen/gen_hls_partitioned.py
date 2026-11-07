@@ -73,7 +73,7 @@ extern "C" void graph_engine_part(
        pid, nparts, len(local), ", ".join(str(v) for v in local))
 
 
-def gen_kernel(name, n, in_adj, owner, pid, latch, split, nparts):
+def gen_kernel(name, n, in_adj, owner, pid, latch, split, nparts, or_mode="flat"):
     local = part.local_vertices(owner, pid)
     L = []
     A = L.append
@@ -130,11 +130,23 @@ def gen_kernel(name, n, in_adj, owner, pid, latch, split, nparts):
     A('        }')
     A('')
     A('        // ===== baked wiring: this partition\'s rows only =====')
+    A('        // OR reduction shape: %s' % or_mode)
     for v in local:
         terms = (['s[%d]' % v] if latch else []) + \
                 ['s[%d]' % u for u in in_adj[v]]
-        hop = " | ".join(terms) if terms else "(ap_uint<1>)0"
-        A('        res[%d] = do_hop ? (%s) : s[%d];' % (v, hop, v))
+        if or_mode == "tree":
+            # Scoped so each vertex's temporaries are independent names; HLS
+            # flattens the block away and the scope costs nothing.
+            A('        {   // v=%d fanin=%d' % (v, len(terms)))
+            root = emit_or_tree(A, 'res[%d]' % v, terms, '            ', '_%d' % v)
+            if root is None:
+                A('            res[%d] = do_hop ? (ap_uint<1>)0 : s[%d];' % (v, v))
+            else:
+                A('            res[%d] = do_hop ? %s : s[%d];' % (v, root, v))
+            A('        }')
+        else:
+            hop = " | ".join(terms) if terms else "(ap_uint<1>)0"
+            A('        res[%d] = do_hop ? (%s) : s[%d];' % (v, hop, v))
     A('        // ===== end baked wiring =====')
     A('')
     A('        unsigned c = 0;')
@@ -159,6 +171,47 @@ def gen_kernel(name, n, in_adj, owner, pid, latch, split, nparts):
     return "\n".join(L) + "\n"
 
 
+def emit_or_tree(A, dest, terms, indent, tag):
+    """Emit a BALANCED BINARY TREE of ORs into `dest`, instead of one flat
+    expression.
+
+    The flat form the generator used to emit --
+
+        res[v] = do_hop ? (s[v] | s[a] | s[b] | ... ) : s[v];
+
+    -- is a single basic block whose term count equals the vertex's fan-in. At
+    N=1000 that reaches ~1000 terms for a high-fan-in vertex, and that is what
+    makes csynth time out: 9 min -> 86 min -> timeout across two 2x size steps
+    while using only ~6% of the LUTs (CAPACITY.md). The work is not large; the
+    basic block is.
+
+    This writes the same logic as ceil(log2(k)) levels of pairwise ORs through
+    named temporaries, so each statement has exactly two operands and the
+    expression DAG's depth is explicit in the source rather than left to the
+    front end to discover.
+
+    Returns the name of the expression holding the result (or None for an empty
+    fan-in, which the caller renders as a constant 0).
+    """
+    if not terms:
+        return None
+    level = list(terms)
+    depth = 0
+    while len(level) > 1:
+        nxt = []
+        for i in range(0, len(level), 2):
+            if i + 1 < len(level):
+                nm = "t%s_%d_%d" % (tag, depth, i // 2)
+                A('%sap_uint<1> %s = %s | %s;' % (indent, nm, level[i], level[i + 1]))
+                nxt.append(nm)
+            else:
+                # odd one out: carried up untouched, no gate and no temporary
+                nxt.append(level[i])
+        level = nxt
+        depth += 1
+    return level[0]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("input")
@@ -168,6 +221,13 @@ def main():
     ap.add_argument("-o", "--out", default=None)
     ap.add_argument("--name", default=None)
     ap.add_argument("--pulse", action="store_true")
+    ap.add_argument("--or-mode", dest="or_mode", default="flat",
+                    choices=("flat", "tree"),
+                    help="shape of each vertex's fan-in OR: 'flat' is one "
+                         "expression per vertex (original); 'tree' is an "
+                         "explicit balanced binary tree of 2-input ORs through "
+                         "named temporaries, so combinational depth is in the "
+                         "source instead of left to the front end")
     ap.add_argument("--stages", type=int, default=1,
                     help="pinned at 1; a partitioned multi-stage kernel is wrong")
     a = ap.parse_args()
@@ -196,7 +256,8 @@ def main():
     open(os.path.join(out, "graph_wire.hpp"), "w").write(
         gen_header(name, n, nw, latch, a.part, a.nparts, a.split, local))
     open(os.path.join(out, "graph_engine.cpp"), "w").write(
-        gen_kernel(name, n, in_adj, owner, a.part, latch, a.split, a.nparts))
+        gen_kernel(name, n, in_adj, owner, a.part, latch, a.split, a.nparts,
+                   or_mode=a.or_mode))
 
     # The host reads this to confirm the bitstreams it pairs are complementary
     # and were cut from the same graph with the same semantics.
