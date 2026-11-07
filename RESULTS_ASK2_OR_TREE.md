@@ -6,8 +6,9 @@ Measured 2026-11-07 on Coder box `csg-fpga-compile3`, Vitis HLS 2023.2, part
 > **Headline.** The flat OR expression does not finish csynth even at 20,000
 > terms -- the size `CAPACITY.md` records as the practical ceiling. The explicit
 > balanced tree finishes at **128,000 terms in 9,527 s**, at **8% LUT / 10% FF**
-> of the device and the same 2.431 ns estimate. That is **6.4x** the old
-> ceiling, against the **>=3.7x** bar `RESULTS_CPU_BASELINE.md` set.
+> of the device, with its worst logic path at **1.779 ns against a 2.431 ns
+> budget**. That is **6.4x** the old ceiling, against the **>=3.7x** bar
+> `RESULTS_CPU_BASELINE.md` set.
 
 ## 1. The sweep
 
@@ -22,6 +23,10 @@ the flat runs, 10,800 s on the two largest trees.
 | 96,000 | not run | **6,323 s** | 92,952 | 199,502 | 2.431 ns |
 | 128,000 | not run | **9,527 s** | 112,319 | 269,486 | 2.431 ns |
 
+The "est." column is the HLS *Estimated* figure, and on its own it is close to
+meaningless -- see section 2a before drawing anything from the fact that it
+does not move.
+
 All five tree runs rc=0. BRAM_18K 62, DSP 0, URAM 0 throughout. Loop `BATCH`
 II=2 against a target of 1, iteration latency 148 -- unchanged across the whole
 range, so the tree is not costing throughput to buy capacity.
@@ -30,6 +35,39 @@ At 128,000 terms the design is still only **8% of the U280's LUTs and 10% of its
 FFs** (25% / 31% of a single SLR). 128,000 is not the limit either; it is the
 largest point queued. The limit is now csynth wall time, which is growing
 roughly linearly in terms (~74 ms/term) rather than exploding.
+
+## 2a. What the timing numbers actually say
+
+**There is no implementation timing yet.** These are csynth runs; no Vivado
+place-and-route report exists, so nothing here is a closed-timing claim.
+
+Target 3.330 ns, clock uncertainty 0.899 ns, so the logic budget is
+3.330 - 0.899 = **2.431 ns**. "Estimated 2.431 ns" is therefore the budget
+exactly, in every one of the five runs -- and the reason is visible in the
+schedule report: **146 of 150 states have the m_axi `gmem0` bus request or bus
+read as their critical path**, and HLS prices a bus access at the whole
+available period regardless of design size. So the *identical* 2.431 ns across
+20,000 -> 128,000 terms is an artefact of the AXI model and says nothing about
+whether the reduction got deeper.
+
+What does say something is the worst path that is NOT the bus. There is exactly
+one such state (State 76), and it moves:
+
+| OR terms | State 76 critical path | delay |
+|---|---|---|
+| 20,000 | `icmp` on `s` (state unpack) | **1.165 ns** |
+| 128,000 | `icmp` on `t_576_7_0` (1.501 ns) + `select` on `res` (0.278 ns) | **1.779 ns** |
+
+At 128,000 terms the deepest logic path is a **level-7 OR-tree node of vertex
+576** feeding the `do_hop` mux. That is the tree showing up where it should:
+it is now the worst logic in the design, it is **0.65 ns inside the budget**,
+and it grew only **1.53x** for a **6.4x** increase in terms -- the sublinear
+growth the `ceil(log2(fan-in))` depth predicts. At 20,000 terms the tree is
+not even the worst path; the state unpack is.
+
+The OR reduction appears in **zero** critical paths in the flat-form sense at
+either size, which is the point: the shape that used to be an unschedulable
+single basic block is now ordinary pipelined logic with slack.
 
 ## 2. Why the flat form fails, and what killed it
 
