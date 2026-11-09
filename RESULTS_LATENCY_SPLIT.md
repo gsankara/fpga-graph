@@ -107,3 +107,96 @@ per PCIe round trip", it is specific to this host path.
 - **The batch width is assumed to be ~1,576** (the FPGA sweep's width used in
   the scaling runs), not read from this run's output. Section 2's upper bound
   is there precisely so the conclusion survives if it is wrong.
+
+---
+
+## 7. Per-query comparison: the compute crossover is ~1,000 terms, not ~73,000
+
+The per-query view is the one that separates "is the architecture right?" from
+"is the host path right?", and the two have different answers. It answers three
+distinct questions, which give three different orderings, so any number taken
+from here must say which one it is.
+
+### 7.1 Per query at `ring50` (100 OR terms), 1,576-query batch
+
+| | ns/query |
+|---|---|
+| CPU 1 core, `word` mode | **0.76** |
+| **FPGA kernel, marginal (II=1 @ 300 MHz)** | **3.33** |
+| GPU kernel alone | 4.57 |
+| GPU `resident`, per hop | 8.88 |
+| GPU `roundtrip`, per hop | 28.93 |
+| **FPGA measured per hop** | **191.62** |
+
+### 7.2 The compute-only crossover
+
+The FPGA's marginal cost is **flat in graph size** -- one query per cycle
+whatever the fan-in, because the graph is wiring. The CPU's is **linear in OR
+terms**, at 5.3 ns/term per 1,576-query batch = **3.363 ps per query per term**.
+
+| OR terms | CPU 1 core | FPGA kernel | winner |
+|---|---|---|---|
+| 100 | 0.34 ns | 3.33 ns | CPU, 9.9x |
+| **991** | **3.33 ns** | **3.33 ns** | **crossover** |
+| 20,000 | 67.3 ns | 3.33 ns | FPGA, 20x |
+| 64,000 | 215.2 ns | 6.67 ns | FPGA, 32x |
+| 128,000 | 430.5 ns | 6.67 ns | FPGA, 65x |
+
+**The compute crosses over at ~1,000 OR terms -- 73x lower than the ~73,000 for
+the full hop (`RESULTS_CPU_BASELINE.md`). The difference between those two
+crossovers IS the host path.** The architecture was never the problem.
+
+II is not constant across designs: `ring50` achieves II=1, but all five n1000
+designs achieved **II=2**, so 6.67 ns/query is used for the large graphs rather
+than extrapolating ring50's best case.
+
+### 7.3 At a graph that matters -- n1000 d64, 64,000 terms
+
+| | ns/query |
+|---|---|
+| **FPGA kernel** | **6.67** |
+| GPU kernel | 10.09 |
+| GPU `resident` per hop | 11.23 |
+| GPU `roundtrip` per hop | 45.2 |
+| FPGA measured per hop | ~194.7 |
+| CPU 1 core | 205.3 |
+
+**The FPGA has the best compute of the three and the worst delivered
+performance.** It beats the GPU's kernel by 1.5x and loses the hop by 4.3x.
+
+### 7.4 Which number answers which question
+
+| question | metric | answer |
+|---|---|---|
+| Is the architecture right? | marginal kernel | **Yes above ~1,000 terms**, and it beats the GPU kernel |
+| Is the implementation usable? | amortized per hop | Only at huge batches -- see below |
+| What is single-query latency? | one query, one hop | **296.8 us.** Hopeless |
+
+Dispatch is paid once per BATCH, so the amortized figure is entirely
+batch-dependent:
+
+| queries per hop | FPGA ns/query |
+|---|---|
+| 1 | 296,783 |
+| 64 | 4,640 |
+| 1,576 | 191.6 |
+| 11,032 | 30.2 |
+| 100,000 | **6.3** |
+
+It takes a ~100,000-query batch for the amortized figure to approach the
+marginal one. That is the overhead being diluted, not removed.
+
+### 7.5 What could move these numbers
+
+1. **The CPU column is one core and no honest multi-core number exists**
+   (`--threads` spawns threads per hop; see `RESULTS_CPU_BASELINE.md` section
+   5). With `part0`'s 8 vCPU the compute crossover could move from ~1,000 to
+   ~8,000 terms. Still far below 73,000, so the structural conclusion survives,
+   but the margin does not.
+2. **The ~296 us overhead is measured at `ring50`'s 12.3 KiB payload.** At
+   n=1000 the payload is 197 KiB, 16x larger -- 12.5 us of wire time against
+   170 us measured, so still per-call dominated, but the n1000 d64 per-hop row
+   is an assumption, not a measurement.
+3. **Per-query amortization is a throughput metric, not a latency one.** It is
+   legitimate for sustained rates, but it hides that the FPGA needs a
+   100,000-query batch to look good while the CPU needs none.
