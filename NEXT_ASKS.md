@@ -15,7 +15,9 @@ first would measure the wrong thing. See "Sequencing" at the end.
 > (`host/cpu_hop.cpp`), GPU in `RESULTS_GPU_BASELINE.md` (`host/gpu_hop.cu`,
 > measured on an A30 at HAWI). Both validated against the Python reference on
 > the full 11,032-query sweep with 0 mismatches. Headline: at the FPGA's own
-> ~20,000-term ceiling the ordering is GPU 68.4 µs < CPU 105.2 µs < FPGA
+> ~20,000-term ceiling (lifted to 128,000 on 2026-11-07 by ask 2 --- see
+> `RESULTS_ASK2_OR_TREE.md`; at that size the ordering becomes GPU ~71 µs <
+> FPGA ~388 µs < CPU 1 core ~678 µs) the ordering is GPU 68.4 µs < CPU 105.2 µs < FPGA
 > 387.7 µs, and the GPU result shows the FPGA's per-hop overhead is not
 > inherent to the round-trip structure. The open questions below are answered
 > in those two files; the text is kept as the original assessment.

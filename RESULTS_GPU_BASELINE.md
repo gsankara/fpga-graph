@@ -123,6 +123,14 @@ GPU's ~68 µs roundtrip plateau). Below that the CPU wins, above it the GPU wins
 break-even against one CPU core: crossover ~73,000 OR terms against a ~20,000
 term ceiling, so **3.7× short**. The GPU sharpens this in two ways.
 
+> **UPDATE 2026-11-07.** The ~20,000 ceiling has been lifted to **128,000
+> terms** by the RTL OR tree (`RESULTS_ASK2_OR_TREE.md`), past the ~73,000
+> crossover, so the design can now be built at a size where it beats one CPU
+> core. **Part (a) below is therefore historical.** Part (b) is not: at
+> ~128,000 terms the GPU still does the same round trip in ~71 µs against the
+> FPGA's ~388 µs, so the 5.7× GPU gap survives the capacity fix untouched —
+> which is exactly the point part (b) makes.
+
 **(a) At the FPGA's maximum bakeable graph, it is last.**
 
 | at ~20,000 OR terms | per-hop p50 |
@@ -144,7 +152,12 @@ one hop per device invocation, host in the loop every hop — and lands at
 costs tens of microseconds, not hundreds. The remaining ~320 µs is specific to
 the XRT/OpenCL enqueue path and this host code, not to the design's shape.
 
-**Consequence for ask 2.** An RTL binary OR tree raises the term ceiling, and
+**Consequence for ask 2 — and it held.** Ask 2 cleared the capacity bar at
+6.4× (128,000 terms) and the tree runs correctly on hardware, while the per-hop
+overhead moved not at all: `local_fpga` measured ~300 µs on the tree build for
+a kernel whose compute is nanoseconds. The prediction below was correct.
+
+An RTL binary OR tree raises the term ceiling, and
 the bar from the CPU baseline was "≥3.7× more OR terms". That bar is necessary
 but **not sufficient**: even with unlimited capacity, the per-hop overhead would
 still be ~388 µs, which already loses to a GPU by 5.7× at any size. Capacity and

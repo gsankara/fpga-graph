@@ -9,6 +9,12 @@ the p0 U280**, so the CPU and FPGA numbers come from one machine.
 > for a flat-baked HLS kernel is **~20,000 OR terms**. The current design is
 > therefore **3.7× short of its own break-even point** — there is no graph it
 > can build today on which it beats a single CPU core.
+>
+> **SUPERSEDED 2026-11-07 — see section 5.** The ~20,000 ceiling was the FLAT
+> OR expression's limit. The RTL binary tree (ask 2) synthesizes **128,000
+> terms**, past the ~73,000 crossover, so the "no graph it can build" claim no
+> longer holds. The 554x figure on `ring50` and the 5.3 ns/term fit are
+> unaffected — they are measurements, not conclusions.
 
 ---
 
@@ -131,6 +137,8 @@ Put the two together:
 maximum bakeable graph it loses to one CPU core by **3.7×**. And the gap to
 break-even is also 3.7× — in OR terms.
 
+> **No longer true as of 2026-11-07.** See section 5.
+
 Two consequences:
 
 1. **The bottleneck is not the silicon, and it never was.** Earlier work
@@ -191,3 +199,47 @@ python3 graphgen/make_graph.py --nodes 1000 --degree 20 -o /tmp/g.edges
 python3 scripts/mkq_scaling.py 1000 1576 10 > /tmp/q.txt
 ./cpu_hop /tmp/g.edges --mode word --threads 1 < /tmp/q.txt > /dev/null
 ```
+
+---
+
+## 5. Update 2026-11-07: the ceiling moved, so this verdict changed
+
+Everything above was measured against a **~20,000 OR term** ceiling. That
+ceiling was a property of the flat OR expression handed to the HLS scheduler,
+not of the device. `RESULTS_ASK2_OR_TREE.md` shows the explicit balanced binary
+tree csynthesizing **128,000 terms in 9,527 s at 8.6% LUT / 10.3% FF**, while
+the flat form does not finish even at 20,000 under a 9,000 s cap. Tree
+bitstreams also run correctly on two U280s — 11,032 queries, 0 mismatches
+(`RESULTS_ASK2_HARDWARE.md`).
+
+128,000 terms is past the **~73,000** crossover this file identified. So:
+
+| at ~128,000 OR terms | per-hop |
+|---|---|
+| GPU `roundtrip` (A30) | ~71 µs |
+| **2×U280, intra-node** | **~388 µs** |
+| CPU, 1 core | **~678 µs** (interpolated from the 5.3 ns/term fit) |
+
+**For the first time the design can be built at a size where it beats a single
+CPU core — by ~1.75×.** It still loses to the A30 by ~5.5×.
+
+Three things keep this from being a clean win, in order of how likely each is
+to overturn it:
+
+1. **The multi-core number does not exist, and it is the cheapest experiment
+   that could erase the 1.75×.** `cpu_hop --threads N` spawns threads *per
+   hop* and is 480x slower than single-threaded on `ring50`, so it measures
+   thread creation. `part0` exposes 8 vCPU. A correct parallel implementation
+   would need only ~2x to wipe out the FPGA's advantage entirely. **Fix
+   `--threads` to use a persistent pool before quoting the 1.75× anywhere.**
+2. **678 µs is an interpolation of a fit, not a measurement.** The largest
+   measured point near it is 80,000 terms at 429.0 µs. Run `cpu_hop` on a
+   128,000-term graph.
+3. **No FPGA measurement exists at 128,000 terms either.** The 387.7 µs is the
+   intra-node arm at `ring50`'s 100 terms, and is assumed constant in graph
+   size because the hop is enqueue- and transfer-bound. That assumption is well
+   supported but untested at the new ceiling — the `n1000d20` tree link is the
+   next step.
+
+The structural conclusion in section 4 is unchanged: **the per-hop overhead is
+a separate problem from the term ceiling.** Ask 2 addressed only the ceiling.
