@@ -383,3 +383,73 @@ Two actionable items, in order:
   per query and the marginal terms would change; the fixed terms should not.
 - Script: `scratchpad/sweep_nq.sh`, run on `part0` in `~/fpga-part`. Note
   `part_query` needs `-luuid` alongside `-lxrt_coreutil`.
+
+---
+
+## 10. The 2.31x is a COLD-INVOCATION cost, measured
+
+Section 9.1 left 2.31x unexplained and named the test. Here it is, run
+2026-11-10 on `part0`: one card, partition 0's bitstream alone, no peer, no
+exchange, nq = 1,576 (the real sweep batch size). The only variable is idle
+time inserted between hops via the new `part_query --gap-ms N`, placed
+**before** the hop timer so the idle itself is not measured.
+
+| gap between hops | hop p50 | H2D | exec | D2H | combine | 3-stage sum |
+|---|---|---|---|---|---|---|
+| 0 ms | **181.9** | 37.9 | 62.8 | 38.2 | 66.0 | 138.9 |
+| 1 ms | 188.7 | 40.5 | 61.9 | 37.7 | 57.6 | 140.1 |
+| 5 ms | 194.4 | 39.8 | 42.0 | 46.0 | 69.1 | 127.8 |
+| **32 ms** | **378.4** | **85.4** | **89.7** | **82.3** | 93.4 | **257.4** |
+| 100 ms | 379.4 | 88.3 | 105.2 | 80.9 | 110.4 | 274.4 |
+
+All us; stage columns are reported totals / 10 hops.
+
+**A 32 ms gap on ONE card, with no partitioning and no exchange anywhere,
+reproduces the partitioned wide-area run:** 257.4 us of stages against that
+run's 283.4 us. H2D doubles (37.9 -> 85.4), D2H doubles (38.2 -> 82.3), `exec`
+rises 1.43x.
+
+The effect **saturates between 5 ms and 32 ms** -- 100 ms is
+indistinguishable from 32 ms. A threshold rather than gradual warming, which
+fits CPU C-state exit, frequency scaling or cache eviction on the host, not
+anything on the card.
+
+### 10.1 What this settles
+
+**The ~160 us is cold-invocation cost, not the data partition.** Section 8's
+conclusion is restored, now by direct measurement with a mechanism rather than
+by indirect argument. Partitioning's role is only indirect: the wide-area
+exchange takes 32.7 ms, which guarantees every kernel invocation is cold.
+
+### 10.2 What it costs the rest of this repo
+
+**Every wide-area FPGA latency figure here is ~2x inflated by this.**
+`local_fpga` 302 us is a cold number; warm at the same batch size is
+**181.9 us**.
+
+It also makes the cross-arm comparisons unfair in a known direction:
+`cpu_hop` and `gpu_hop` run back-to-back with nothing between iterations --
+**warm** -- while the FPGA was measured **cold**. So:
+
+| ring50, per hop | as published | warm-vs-warm |
+|---|---|---|
+| GPU `roundtrip` | 29.5 us | 29.5 us |
+| FPGA, 1 card, nq=1,576 | 302.0 us (cold) | **181.9 us** |
+| ratio | 10.2x | **6.2x** |
+
+The FPGA still loses. But a chunk of what sections 3-6 attributed to "the XRT
+enqueue path" is really "the host idled for 32 ms between invocations", and
+that distinction matters because the two have completely different fixes.
+
+### 10.3 Limits
+
+- **One run per gap value.** The 5 ms row is visibly noisy (`exec` 42.0 us
+  against 62.8 at 0 ms and 89.7 at 32 ms), so the threshold is somewhere in
+  5-32 ms and is not located more precisely than that.
+- **The mechanism is inferred, not instrumented.** C-state, frequency and cache
+  behaviour were not measured; the evidence is the saturating threshold and
+  that H2D/D2H -- host-side calls -- move most. Pinning it down means
+  `cpupower`/`turbostat` during a run, or repeating with C-states disabled.
+- **`ring50`, nw=1, one card.** Not re-measured on the two-card arms.
+- Scripts: `scratchpad/sweep_nq.sh`, `scratchpad/gap_test.sh`, run in
+  `~/fpga-part` on `part0`.

@@ -36,6 +36,7 @@
 #include <cstring>
 #include <algorithm>
 #include <chrono>
+#include <thread>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -112,6 +113,13 @@ int main(int argc, char** argv) {
     unsigned n = 0, nw = 0;
     bool selfcheck = true;
     int  ndev_override = 0;      // 0 = probe; >0 = trust the operator
+    // Idle time inserted between hops, OUTSIDE the hop timer. Exists to test
+    // whether a cold kernel invocation costs more than a back-to-back one: in
+    // the wide-area partitioned arm every hop waits ~32.7 ms for the exchange,
+    // so the card is invoked once per 32 ms, whereas this program normally
+    // hammers it continuously. That is a 2.31x discrepancy to explain
+    // (RESULTS_LATENCY_SPLIT.md section 9.1).
+    unsigned gap_ms = 0;
 
     // ---- arguments ----
     std::vector<std::string> pos;
@@ -122,6 +130,8 @@ int main(int argc, char** argv) {
             while (std::getline(ss, t, ',')) if (!t.empty()) devs.push_back((unsigned) atoi(t.c_str()));
         } else if (a == "--ndev" && i + 1 < argc) {
             ndev_override = atoi(argv[++i]);
+        } else if (a == "--gap-ms" && i + 1 < argc) {
+            gap_ms = (unsigned) atoi(argv[++i]);
         } else if (a == "--no-selfcheck") {
             selfcheck = false;
         } else {
@@ -131,7 +141,7 @@ int main(int argc, char** argv) {
     if (pos.size() < 3) {
         fprintf(stderr,
             "usage: %s <n> <nw> <xclbin0> [<xclbin1> ...] "
-            "[--dev i,j] [--ndev n] [--no-selfcheck]\n",
+            "[--dev i,j] [--ndev n] [--no-selfcheck] [--gap-ms N]\n",
             argv[0]);
         return 1;
     }
@@ -320,6 +330,9 @@ int main(int argc, char** argv) {
                 if (v < n) state[(size_t) q * qbytes + v / 8] |= (uint8_t) (1u << (v % 8));
 
         for (unsigned hop = 0; hop < kk; ++hop) {
+            // Before h0 on purpose: the idle is the thing being controlled for,
+            // not something to measure.
+            if (gap_ms) std::this_thread::sleep_for(std::chrono::milliseconds(gap_ms));
             auto h0 = clk::now();
             // broadcast + compute on every card
             for (unsigned k = 0; k < nparts; ++k) {
