@@ -207,6 +207,31 @@ static void usage(const char* p) {
         "       %s --drive <host>:<port> <n> <nw> <xclbin> [--dev i] [--ndev n]\n", p, p);
 }
 
+// Word-wise OR of `src` into `dst`.
+//
+// This replaces a byte-at-a-time `dst[b] |= src[b]` loop that measured
+// 30.26 ns/query -- roughly 0.5 GB/s, 65% of the hop's whole marginal cost and
+// 9x the kernel itself (RESULTS_LATENCY_SPLIT.md section 9.3). The combine is
+// pure host memory work, so it was the largest single term in the hop and the
+// cheapest to fix.
+//
+// memcpy into a uint64_t rather than a cast: it is how you do an unaligned
+// load without undefined behaviour, and every compiler turns it into a plain
+// mov. The scalar tail means this is correct for ANY nb, not just multiples of
+// 8, so it does not quietly depend on qbytes being a multiple of 8.
+static inline void or_into(uint8_t* dst, const uint8_t* src, size_t nb) {
+    size_t i = 0;
+    for (; i + 8 <= nb; i += 8) {
+        uint64_t a, b;
+        std::memcpy(&a, dst + i, 8);
+        std::memcpy(&b, src + i, 8);
+        a |= b;
+        std::memcpy(dst + i, &a, 8);
+    }
+    for (; i < nb; ++i) dst[i] |= src[i];
+}
+
+
 int main(int argc, char** argv) {
     std::string mode, endpoint;
     std::vector<std::string> pos;
@@ -385,8 +410,8 @@ int main(int argc, char** argv) {
                 return 5;
             }
             auto got = clk::now();
-            for (size_t b = 0; b < state.size(); ++b)
-                state[b] = card.hout[b] | peer[b];
+            std::memcpy(state.data(), card.hout, state.size());
+            or_into(state.data(), peer.data(), state.size());
             auto h1 = clk::now();
             rtt_us.push_back(us(sent, got));
             local_us.push_back(us(sent, locald));

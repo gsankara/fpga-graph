@@ -453,3 +453,74 @@ that distinction matters because the two have completely different fixes.
 - **`ring50`, nw=1, one card.** Not re-measured on the two-card arms.
 - Scripts: `scratchpad/sweep_nq.sh`, `scratchpad/gap_test.sh`, run in
   `~/fpga-part` on `part0`.
+
+---
+
+## 11. Fixing the combine: warm hop 181.9 -> 122.3 us (-33%)
+
+Section 9.3 found the host combine -- `state[b] |= p[b]`, byte at a time -- was
+the largest single term in the hop. Replaced with a word-wise `or_into()`
+(memcpy into `uint64_t`, scalar tail) in both `host/part_query.cpp` and
+`host/part_agent.cpp`, plus one structural change: start the combine from card
+0's partial instead of `memset` to zero and then OR every card. That is the
+same OR of every partial and saves a full pass over the buffer.
+
+Same card, same bitstream, same nq = 1,576, only the combine changed:
+
+| gap | combine before | combine after | speedup | hop p50 before | hop p50 after |
+|---|---|---|---|---|---|
+| 0 ms | 66.04 | **7.52** | **8.8x** | 181.9 | **122.3** |
+| 1 ms | 57.62 | 7.62 | 7.6x | 188.7 | 140.3 |
+| 5 ms | 69.10 | 10.65 | 6.5x | 194.4 | 218.2 |
+| 32 ms | 93.38 | 20.72 | 4.5x | 378.4 | 276.2 |
+| 100 ms | 110.43 | 26.42 | 4.2x | 379.4 | 243.1 |
+
+All us. **At gap 0 the hop drops 59.6 us, which is exactly the 58.5 us the
+combine saved** -- the saving is real and lands where predicted, not absorbed
+elsewhere.
+
+Per query the combine went **30.26 -> 4.77 ns**, a 6.3x improvement. It is now
+the same order as the kernel's 3.33 ns rather than 9x it.
+
+Revised warm per-hop picture at nq = 1,576, one card:
+
+| | before | after |
+|---|---|---|
+| hop p50 | 181.9 us | **122.3 us** |
+| vs GPU `roundtrip` 29.5 us | 6.2x | **4.1x** |
+| vs the originally published 302 us (cold) | -- | **2.5x better** |
+
+### 11.1 Correctness
+
+`or_into` was unit-tested against the byte loop it replaces over **every length
+0-200 at every alignment offset 0-7 (1,608 combinations) plus the real
+1,576 x 8 B shape**: byte-exact, PASS. The test is
+`scratchpad/t_or.cpp`. `memcpy` into a `uint64_t` is used rather than a cast
+because it is the defined way to do an unaligned load, and the scalar tail
+means correctness does not depend on `qbytes` being a multiple of 8.
+
+`part_agent.cpp` was recompiled against XRT to confirm it still builds.
+
+**Not yet re-validated: the two-card end-to-end run.** `or_into` is verified as
+a pure function and the restructure is logically equivalent, but
+`compare_part.py` has not been re-run across both cards since the change,
+because the FABRIC token expired. **That check is owed before any new
+two-card number is published from this code.** A single card cannot stand in
+for it: partition 0 alone cannot reproduce the full graph, which is why the
+sweeps here use `--no-selfcheck`.
+
+### 11.2 What is left
+
+With the combine fixed, the warm 122.3 us hop at nq = 1,576 is roughly:
+
+| | us | note |
+|---|---|---|
+| H2D | 33.8 | ~28 us fixed + 5.8 ns/query |
+| exec | 55.5 | ~46 us fixed; kernel is 5.2 us of it |
+| D2H | 36.1 | ~23 us fixed + 5.6 ns/query |
+| combine | 7.5 | was 66.0 |
+
+**The fixed per-call floor (~97 us) now dominates the warm hop.** The next
+targets are therefore the ones section 9.3 ranked second: a persistent
+`xrt::run` instead of rebuilding it every hop, and whatever makes a `sync()`
+cost ~25 us before it moves a byte.

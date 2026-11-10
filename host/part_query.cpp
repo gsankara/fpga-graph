@@ -107,6 +107,31 @@ struct Card {
     double            t_h2d = 0, t_exec = 0, t_d2h = 0;
 };
 
+// Word-wise OR of `src` into `dst`.
+//
+// This replaces a byte-at-a-time `dst[b] |= src[b]` loop that measured
+// 30.26 ns/query -- roughly 0.5 GB/s, 65% of the hop's whole marginal cost and
+// 9x the kernel itself (RESULTS_LATENCY_SPLIT.md section 9.3). The combine is
+// pure host memory work, so it was the largest single term in the hop and the
+// cheapest to fix.
+//
+// memcpy into a uint64_t rather than a cast: it is how you do an unaligned
+// load without undefined behaviour, and every compiler turns it into a plain
+// mov. The scalar tail means this is correct for ANY nb, not just multiples of
+// 8, so it does not quietly depend on qbytes being a multiple of 8.
+static inline void or_into(uint8_t* dst, const uint8_t* src, size_t nb) {
+    size_t i = 0;
+    for (; i + 8 <= nb; i += 8) {
+        uint64_t a, b;
+        std::memcpy(&a, dst + i, 8);
+        std::memcpy(&b, src + i, 8);
+        a |= b;
+        std::memcpy(dst + i, &a, 8);
+    }
+    for (; i < nb; ++i) dst[i] |= src[i];
+}
+
+
 int main(int argc, char** argv) {
     std::vector<std::string> xclbins;
     std::vector<unsigned>    devs;
@@ -347,13 +372,15 @@ int main(int argc, char** argv) {
                 auto d = clk::now();
                 c.t_h2d += us(a, b); c.t_exec += us(b, cc); c.t_d2h += us(cc, d);
             }
-            // combine: OR the partials into the next state
+            // combine: OR the partials into the next state.
+            // Equivalent to the previous memset-then-OR-all: starting from
+            // card 0's partial instead of from zero gives the same OR of every
+            // partial, and skips a full pass over the buffer.
             auto g0 = clk::now();
-            std::memset(state.data(), 0, (size_t) nq * qbytes);
-            for (unsigned k = 0; k < nparts; ++k) {
-                const uint8_t* p = cards[k].hout;
-                for (size_t b = 0; b < (size_t) nq * qbytes; ++b) state[b] |= p[b];
-            }
+            const size_t nb = (size_t) nq * qbytes;
+            std::memcpy(state.data(), cards[0].hout, nb);
+            for (unsigned k = 1; k < nparts; ++k)
+                or_into(state.data(), cards[k].hout, nb);
             auto g1 = clk::now();
             combine_us.push_back(us(g0, g1));
             hop_us.push_back(us(h0, g1));
