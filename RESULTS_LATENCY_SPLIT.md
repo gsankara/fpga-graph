@@ -200,3 +200,53 @@ marginal one. That is the overhead being diluted, not removed.
 3. **Per-query amortization is a throughput metric, not a latency one.** It is
    legitimate for sustained rates, but it hides that the FPGA needs a
    100,000-query batch to look good while the CPU needs none.
+
+---
+
+## 8. Is the ~300 us caused by partitioning? No.
+
+A natural suspicion, since the design splits the graph across two cards. Three
+independent reasons it is not, and one cross-check.
+
+**1. By construction, `local_fpga` excludes the partition.** The 302 us is one
+card's own H2D + dispatch + D2H for its own state vector. The partition's cost
+is a *separate* metric in the same table: `exchange_rtt`, 32,728 us p50, plus
+the host combine. Partitioning cannot be inside the 302 us.
+
+**2. The same overhead appears with no partitioning at all.** From the
+single-card design-C runs -- one card, no partition, no exchange:
+
+| design | fixed per-call `exec` cost | source |
+|---|---|---|
+| `C_tree` (N=11) | **~62 us**, independent of batch size | `RESULTS_C_tree_gatech.md` |
+| `C_ring16` (N=16) | **~84 us**, independent of batch size | `RESULTS_C_ring16_gatech.md` |
+
+Those files already named it "enqueue + doorbell + wait". Partitioning absent,
+overhead present, same order of magnitude.
+
+**3. The H2D leg contains no partitioning and no kernel.** One `bo_in.sync()`
+moving 12.3 KiB -- 0.80 us of wire time -- costing 98.7 us. Splitting a graph
+across cards plays no part in that number.
+
+**Cross-check from the other direction:** the GPU is not partitioned at all
+(one device, whole graph) and pays 29.5 us for the identical round-trip
+structure. So neither partitioning nor the round-trip shape explains 300 us.
+
+### What partitioning actually costs
+
+| | cost | where it shows |
+|---|---|---|
+| **the exchange** | **32,728 us** p50 | `exchange_rtt` -- 99.2% of the wide-area hop |
+| host combine (OR the partials) | reported separately | `combine_us` |
+| **cards serialized, not overlapped** | up to ~2x on the device portion | folded into the hop |
+
+The third is genuinely partition-induced: `part_agent` completes
+H2D -> exec -> wait -> D2H for one card before starting the next, though the
+cards are independent until the combine barrier. That is plausibly part of why
+design P's `exec` is 112.6 us against the single-card designs' 62-84 us -- but
+it is a ~2x effect on an already-broken path, not the cause of it.
+
+**Ranking of what to fix:** the exchange dominates by ~100x and is largely
+physics (32.3 ms of ICMP on a cross-country path); the ~300 us XRT path is next
+and is not partition-related; card serialization is a ~2x refinement after
+that.
