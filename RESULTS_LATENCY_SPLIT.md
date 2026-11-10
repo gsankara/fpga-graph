@@ -50,8 +50,12 @@ This matches the RTL: `ring50`'s max fan-in is 3, so its `or_tree` is 2 levels
 
 ## 3. The decisive number: transfer cost is per-call, not per-byte
 
-Payload per direction is `nq x qbytes` = 1,576 x 8 B = **12.3 KiB**. On the
-U280's gen3 x16 XDMA shell (~15.75 GB/s) that is **0.80 us of wire time**.
+Payload per direction is `nq x qbytes` = **1,576 x 8 B = 12,608 B = 12.3 KiB**.
+`nq` is 1,576 because `compare_part.py` re-runs the whole 1,576-query set at
+each of 7 step-count groups (`[0,1,2,3,12,25,26]` for `ring50`, eccentricity
+25), whose hop counts sum to the 69 hop samples; 11,032 is the query-RESULT
+count, not queries per hop. On the U280's gen3 x16 XDMA shell (~15.75 GB/s)
+12.3 KiB is **0.80 us of wire time**.
 
 | | measured | wire time | ratio |
 |---|---|---|---|
@@ -283,20 +287,50 @@ Fitted over NQ = 1,024 -> 65,536:
 | D2H | 22.8 us | 5.60 ns/query |
 | **host combine** | ~0 | **30.26 ns/query** |
 
-### 9.1 Partitioning is ruled out by direct measurement
+### 9.1 RETRACTED: the nq used here was wrong
 
-The run that measured 302 us had **11,032 queries**. Predicting that operating
-point from the single-card fit:
+**This section originally claimed the partitioned 302 us was "entirely
+explained by single-card behaviour at nq ~ 11,032", predicting H2D 92.5 / exec
+100.1 / D2H 84.6 us against measured 98.7 / 112.6 / 72.0. That agreement was
+numerology: 11,032 is the query-RESULT count, not the queries per hop.**
 
-| | predicted (1 card, no partition) | measured (2 cards, partitioned) |
+The real batch size, derived from `sim/compare_part.py`: `ring50` has
+eccentricity 25, so the sweep uses step-count groups
+`[0, 1, 2, 3, 12, 25, 26]` -- 7 groups whose hop counts sum to the **69** hop
+samples. The full query set is re-run at each, so
+
+```
+nq per hop = 11,032 / 7 = 1,576      payload = 1,576 x 8 B = 12,608 B = 12.3 KiB
+```
+
+`nq` is 1,576 and constant across all 69 samples. At that nq the single-card
+fit predicts:
+
+| | single-card prediction | partitioned wide-area, measured |
 |---|---|---|
-| H2D | 92.5 us | 98.7 us |
-| exec | 100.1 us | 112.6 us |
-| D2H | 84.6 us | 72.0 us |
+| H2D | 37.6 us | 98.7 us |
+| exec | 53.6 us | 112.6 us |
+| D2H | 31.6 us | 72.0 us |
+| **sum** | **122.9 us** | **283.4 us** |
 
-Within ~15% on all three. **The partitioned 302 us is entirely explained by
-single-card behaviour at nq ~ 11,032.** Section 8 argued this indirectly; this
-measures it.
+**The partitioned run costs 2.31x what one card costs at the same batch size.**
+So ~160 us is paid by that run and not by the single-card sweep, and section
+8's conclusion is weaker than stated there: the per-call floor does exist
+without partitioning (sections 3, 6, 8 stand on that), but something in the
+partitioned wide-area run adds 2.3x on top.
+
+**Leading hypothesis, and it is not the data partition:** the wide-area run
+waits ~32.7 ms for the exchange between hops, so the card is invoked once per
+32 ms rather than back-to-back. Cold caches, CPU C-state and frequency
+scaling, and XRT re-arming would all plausibly cost ~160 us on a cold
+invocation. The single-card sweep hammered the card continuously -- the best
+case, not a representative one.
+
+**The test that separates them:** add a configurable inter-hop delay to the
+single-card run. If ~32 ms of idle reproduces ~283 us on one card with no
+partition and no exchange, it is a cold-invocation effect. If it does not, the
+cost belongs to `part_agent` or to the partitioned structure after all. Until
+that is run, treat the 2.31x as unexplained rather than attributed.
 
 ### 9.2 Correction: it is not mostly per-call overhead
 
