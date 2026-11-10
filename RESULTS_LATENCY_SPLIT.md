@@ -250,3 +250,102 @@ it is a ~2x effect on an already-broken path, not the cause of it.
 physics (32.3 ms of ICMP on a cross-country path); the ~300 us XRT path is next
 and is not partition-related; card serialization is a ~2x refinement after
 that.
+
+---
+
+## 9. Single-card sweep: partitioning ruled out, and the host combine found
+
+Measured 2026-11-10 on FABRIC `part0`, one U280, running **partition 0's tree
+bitstream alone** -- no peer, no exchange, no combine across cards.
+`--no-selfcheck`, because partition 0 cannot reproduce the full graph and
+correctness is irrelevant to a timing measurement. Sweeping `NQ` (queries per
+hop, all with the same step count so each hop processes exactly `NQ`) is what
+separates fixed per-call cost from marginal per-query cost. `part_query` needed
+no change: `nparts` is just `xclbins.size()`, so one xclbin gives a single-card
+run.
+
+| NQ | payload | hop p50 | H2D/hop | exec/hop | D2H/hop | combine/hop |
+|---|---|---|---|---|---|---|
+| 1 | 8 B | 84.6 | 33.5 | 44.8 | 22.4 | 0.2 |
+| 64 | 512 B | 78.9 | 28.9 | 37.0 | 23.6 | 2.2 |
+| 1,024 | 8 KiB | 135.6 | 34.4 | 50.9 | 28.5 | 28.0 |
+| 16,384 | 128 KiB | 905.0 | 124.4 | 136.4 | 114.2 | **513.2** |
+| 65,536 | 512 KiB | 3,297.6 | 408.6 | 367.6 | 389.7 | **1,980.3** |
+
+All us. Stage columns are reported totals / 10 hops.
+
+Fitted over NQ = 1,024 -> 65,536:
+
+| stage | fixed | marginal |
+|---|---|---|
+| H2D | 28.5 us | 5.80 ns/query |
+| exec | 45.9 us | 4.91 ns/query |
+| D2H | 22.8 us | 5.60 ns/query |
+| **host combine** | ~0 | **30.26 ns/query** |
+
+### 9.1 Partitioning is ruled out by direct measurement
+
+The run that measured 302 us had **11,032 queries**. Predicting that operating
+point from the single-card fit:
+
+| | predicted (1 card, no partition) | measured (2 cards, partitioned) |
+|---|---|---|
+| H2D | 92.5 us | 98.7 us |
+| exec | 100.1 us | 112.6 us |
+| D2H | 84.6 us | 72.0 us |
+
+Within ~15% on all three. **The partitioned 302 us is entirely explained by
+single-card behaviour at nq ~ 11,032.** Section 8 argued this indirectly; this
+measures it.
+
+### 9.2 Correction: it is not mostly per-call overhead
+
+Section 3 and section 6 framed the ~300 us as dominated by **per-call** cost.
+That holds only at tiny batches. At nq = 11,032 the split is:
+
+- **fixed: 97.2 us (34%)** -- the genuine per-call floor
+- **marginal: ~180 us (64%)** -- scales with query count
+
+The 8-byte run does confirm the fixed floor is real (84.6 us to move 8 bytes,
+consistent with `C_tree`'s 62 us and `C_ring16`'s 84 us). But at any realistic
+batch most of the cost is marginal, and the earlier framing was wrong about
+that.
+
+### 9.3 The biggest single target is host code, not XRT
+
+**The host combine -- `for (b ...) state[b] |= p[b]`, a byte-at-a-time
+`uint8_t` loop -- costs 30.26 ns/query: 65% of all marginal cost and 9x the
+kernel.** At NQ = 65,536 it is 1,980 us of a 3,298 us hop, i.e. **60% of the
+hop is a host memory loop** running at roughly 0.5 GB/s.
+
+Marginal cost per query, ranked:
+
+| | ns/query | share |
+|---|---|---|
+| host combine | 30.26 | **65%** |
+| H2D | 5.80 | 12% |
+| D2H | 5.60 | 12% |
+| **kernel** | **3.33** | **7%** |
+| exec, non-kernel | 1.58 | 3% |
+
+Two actionable items, in order:
+
+1. **Rewrite the combine over `uint64_t`, or `memcpy` when `nparts == 1`.** A
+   few lines, and it is the largest term by 5x. `part_query.cpp:341-342` and
+   the equivalent in `part_agent.cpp`.
+2. **H2D/D2H marginal is ~1.38 GB/s effective, about 9% of PCIe gen3 x16 wire
+   speed.** At large batches the syncs are not per-call-bound either; they are
+   genuinely slow per byte. Worth testing whether a host-pointer BO or explicit
+   cache management changes it.
+
+### 9.4 Limits
+
+- **One run per NQ, no repeats.**
+- **The NQ = 1 and 64 rows are noisy**: hop p50 (84.6) is *below* the sum of
+  stage means (100.7), because the stage figures are means over 10 hops that
+  include a 244.6 us outlier. The large-NQ rows carry the conclusions and are
+  stable (p50 within 1% of mean).
+- **`ring50`, nw = 1** (8 B/query) only. At n = 1000 the payload is 16x larger
+  per query and the marginal terms would change; the fixed terms should not.
+- Script: `scratchpad/sweep_nq.sh`, run on `part0` in `~/fpga-part`. Note
+  `part_query` needs `-luuid` alongside `-lxrt_coreutil`.
