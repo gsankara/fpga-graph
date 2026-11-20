@@ -26,7 +26,8 @@
       "platform": "xilinx_u280_gen3x16_xdma_1_202211_1",
       "vitis": "2023.2",
       "wns": "+0.016 ns",
-      "whs": "+0.006 ns"
+      "whs": "+0.006 ns",
+      "or_mode": "flat"
     },
     {
       "name": "P_ring50_u280_p1of2",
@@ -41,7 +42,8 @@
       "platform": "xilinx_u280_gen3x16_xdma_1_202211_1",
       "vitis": "2023.2",
       "wns": "+0.016 ns",
-      "whs": "+0.006 ns"
+      "whs": "+0.006 ns",
+      "or_mode": "flat"
     },
     {
       "name": "P_ring50_u55c_p0of2",
@@ -56,7 +58,8 @@
       "platform": "xilinx_u55c_gen3x16_xdma_3_202210_1",
       "vitis": "2023.2",
       "wns": "+0.003 ns",
-      "whs": "+0.009 ns"
+      "whs": "+0.009 ns",
+      "or_mode": "flat"
     },
     {
       "name": "P_ring50_u55c_p1of2",
@@ -71,7 +74,46 @@
       "platform": "xilinx_u55c_gen3x16_xdma_3_202210_1",
       "vitis": "2023.2",
       "wns": "+0.003 ns",
-      "whs": "+0.009 ns"
+      "whs": "+0.009 ns",
+      "or_mode": "flat"
+    },
+    {
+      "name": "P_ring50_u280_tree_p0of2",
+      "target": "u280",
+      "partition": "p0of2",
+      "or_mode": "tree",
+      "sha256": "4fc0f8bebe3fef095ee1a8bd197b54ccd352f825e5b12066eedf22df24d2c269",
+      "bytes": 49343554,
+      "hls": {
+        "graph_engine.cpp": "97257ff0234c0b49deec8da2fe7b01a06d3aecf40f1d0572529b7d04a5503b20",
+        "graph_wire.hpp": "cfbeb3415e0d1ddba65331b42db82327b20f85b4c2cd2573b8ca1f0311db6c34"
+      },
+      "platform": "xilinx_u280_gen3x16_xdma_1_202211_1",
+      "vitis": "not recorded",
+      "wns": "+0.016 ns",
+      "whs": "+0.006 ns",
+      "built_on": "csg-fpga-compile3",
+      "build_command": "OR_MODE=tree bash scripts/build_part.sh ring50 2 block",
+      "hardware_verified": "2026-11-07 FABRIC fpga-part-internode part0+part1: 11,032 queries / 69 hops, 0 mismatches, PASS"
+    },
+    {
+      "name": "P_ring50_u280_tree_p1of2",
+      "target": "u280",
+      "partition": "p1of2",
+      "or_mode": "tree",
+      "sha256": "a33f786804c6a310f8f9cf7cb4eca5a972a6a5076f1436663459bf20eb88ad28",
+      "bytes": 49247698,
+      "hls": {
+        "graph_engine.cpp": "5f685ae4f187d0dd572008bada8632ef8ba2706e47d2e31210b769f29862a376",
+        "graph_wire.hpp": "2d77bc1fd666c3b56538333c926b015072a39e039f72eef61d03233e7140c560"
+      },
+      "platform": "xilinx_u280_gen3x16_xdma_1_202211_1",
+      "vitis": "not recorded",
+      "wns": "+0.016 ns",
+      "whs": "+0.006 ns",
+      "built_on": "csg-fpga-compile3",
+      "build_command": "OR_MODE=tree bash scripts/build_part.sh ring50 2 block",
+      "hardware_verified": "2026-11-07 FABRIC fpga-part-internode part0+part1: 11,032 queries / 69 hops, 0 mismatches, PASS"
     }
   ]
 }

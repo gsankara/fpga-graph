@@ -17,6 +17,12 @@ against `xilinx_u280_gen3x16_xdma_1_202211_1`.
 
 Both verified by sha256 on-node after staging.
 
+Both are committed: `prebuilt/P_ring50_u280_tree_p{0,1}of2/` hold the
+`kernel.xclbin`, the generated HLS (`graph_engine.cpp`, `graph_wire.hpp`),
+`partition.meta.json` and a `BUILD.md`. The tree HLS for the 20,000-term
+`n1000d20` graph -- generated, never linked -- is in
+`prebuilt/generated_hls/`.
+
 ## 1. The result that matters: it is correct in silicon
 
 **11,032 queries, 69 hops, 0 mismatches — PASS**, on the same default

@@ -5,6 +5,13 @@ Measured 2026-11-07 from the `ring50` tree-bitstream hardware run on
 instrumented by `host/part_agent.cpp` (`[card] H2D ... exec ... D2H`, line 426)
 and by `host/part_query.cpp` (line 387) -- it had simply never been read.
 
+**The exact bitstream and HLS source used here are in the repo:**
+`prebuilt/P_ring50_u280_tree_p0of2/` (and `..._p1of2/` for the peer) --
+`kernel.xclbin`, the generated `graph_engine.cpp`, `graph_wire.hpp`,
+`partition.meta.json` and a `BUILD.md` with sha256 and WNS. The single-card
+sweeps in sections 9-11 ran partition 0's bitstream alone, with
+`--no-selfcheck`.
+
 > **Headline. The kernel is ~2% of the hop and the payload needs 0.80 us of
 > PCIe wire time, yet the hop costs ~302 us.** Of that, ~98% is per-call
 > overhead in the XRT buffer-sync and run-dispatch path. It is not bandwidth,
